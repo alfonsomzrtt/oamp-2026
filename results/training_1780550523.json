@@ -1,0 +1,18 @@
+{
+  "uid": "",
+  "mode": "training",
+  "nick_name": "training_user",
+  "gender": "",
+  "age": 0,
+  "task01": 17.06,
+  "task02": 1.06,
+  "task03": 1.36,
+  "task04": 1.33,
+  "task05": 0.94,
+  "task06": 0.63,
+  "task07": 0.49,
+  "task08": 0.55,
+  "task_avg": 2.927,
+  "cognitive_age": 23,
+  "visuo_spatial": 77
+}
