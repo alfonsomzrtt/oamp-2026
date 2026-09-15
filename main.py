@@ -73,7 +73,7 @@ BUTTON_MODE = os.getenv('BUTTON_MODE', 'false').lower() == 'true'
 HIDE_CAMERA = os.getenv('HIDE_CAMERA', 'false').lower() == 'true'
 
 # Camera settings
-CAMERA_INDEX = int(os.getenv('CAMERA_INDEX', '4'))
+CAMERA_INDEX = int(os.getenv('CAMERA_INDEX'))
 CAMERA_MIRROR_X = os.getenv('CAMERA_MIRROR_X', 'false').lower() == 'true'
 CAMERA_MIRROR_Y = os.getenv('CAMERA_MIRROR_Y', 'false').lower() == 'true'
 try:
