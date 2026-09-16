@@ -7,7 +7,27 @@ play_sfx() dan play_audio() aman dipanggil dari daemon thread.
 
 from __future__ import annotations
 from pathlib import Path
+import threading
 import numpy as np
+
+from config import BASE_DIR
+
+
+_AUDIO_DIR = BASE_DIR / "AUDIO"
+# Set False untuk memakai tone procedural dari _SFX_BUILDERS.
+USE_WAV_SFX = False
+_AUDIO_LOCK = threading.Lock()
+_WAV_EFFECTS = {
+    "amazing": "menakjubkan.wav",
+    "great": "hebat_sekali.wav",
+    "solid": "mantap.wav",
+    "good": "kerja_bagus.wav",
+    "keep_going": "ayo_semangat.wav",
+    "dont_give_up": "jangan_menyerah.wav",
+    "next_level": None,
+    "countdown": "hitung_mundur.wav",
+    "complete": "selesai.wav",
+}
 
 
 # ── Playback ──────────────────────────────────────────────────────────────────
@@ -32,8 +52,9 @@ def play_audio(wav):
     if data.ndim == 1:
         data = data.reshape(-1, 1)
 
-    sd.play(data, samplerate)
-    sd.wait()
+    with _AUDIO_LOCK:
+        sd.play(data, samplerate)
+        sd.wait()
 
 
 # ── Tone synthesis ────────────────────────────────────────────────────────────
@@ -165,7 +186,12 @@ def _skip():
 
 # ── Public API ────────────────────────────────────────────────────────────────
 
-def play_sfx(effect: str):
+def play_sfx(
+    effect: str,
+    *,
+    level: int | None = None,
+    wait: bool = False,
+):
     """
     Putar SFX pendek secara synchronous.
     Panggil dari daemon thread agar tidak block GUI:
@@ -173,15 +199,30 @@ def play_sfx(effect: str):
         threading.Thread(target=lambda: play_sfx("amazing"), daemon=True).start()
     """
     import sounddevice as sd
+    import soundfile as sf
 
     builder = _SFX_BUILDERS.get(effect)
     if builder is None:
         print(f">>> [audio] Unknown effect: {effect!r}")
         return
     try:
-        tone = builder()
-        sd.play(tone.reshape(-1, 1), SR)
-        # Tidak sd.wait() — biarkan jalan non-blocking
+        with _AUDIO_LOCK:
+            if USE_WAV_SFX:
+                wav_name = _WAV_EFFECTS.get(effect, "")
+                if effect == "next_level" and level in range(2, 9):
+                    wav_name = f"lanjut_lvl{level}.wav"
+                wav_path = _AUDIO_DIR / (wav_name or "")
+                if wav_path.is_file():
+                    data, samplerate = sf.read(str(wav_path), dtype="float32")
+                    if data.ndim == 1:
+                        data = data.reshape(-1, 1)
+                    sd.play(data, samplerate)
+                    sd.wait()
+                    return
+
+            tone = builder()
+            sd.play(tone.reshape(-1, 1), SR)
+            sd.wait()
     except Exception as e:
         print(f">>> [audio] play_sfx({effect!r}) failed: {e}")
 
