@@ -1107,7 +1107,7 @@ def _launch_game(model, face_assets):
 
 def _relaunch_from_input(model, face_assets):
     from ui.input_screen import InputScreen
-    inp = InputScreen()
+    inp = InputScreen(model=model, face_assets=face_assets)
     inp.after(200, inp.start_camera_preview)
     try:
         if sys.platform == "linux":
