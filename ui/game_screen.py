@@ -496,12 +496,12 @@ class GameScreen(customtkinter.CTk):
         _fire_event("level_complete", level=lvl, time_sec=elapsed)
         self._update_badge(lvl, state="completed")
 
-        threading.Thread(
-            target=lambda: play_sfx(sfx_for_time(elapsed)), daemon=True,
-        ).start()
-
         if lvl >= self.max_level:
-            self.after(300, self.end_test)
+            def _finish_level_audio():
+                play_sfx(sfx_for_time(elapsed), wait=True)
+                self.after(0, self.end_test)
+
+            threading.Thread(target=_finish_level_audio, daemon=True).start()
             return
 
         # Advance
@@ -514,9 +514,14 @@ class GameScreen(customtkinter.CTk):
         _fire_event("level_start", level=self.current_question)
         self._reset_timer()
         self._start_timer()
-        self.after(200, lambda: threading.Thread(
-            target=lambda: play_sfx("next_level"), daemon=True,
-        ).start())
+        def _play_level_transition_audio():
+            play_sfx(sfx_for_time(elapsed), wait=True)
+            # Transition voice is temporarily disabled; keep motivation audio first.
+
+        threading.Thread(
+            target=_play_level_transition_audio,
+            daemon=True,
+        ).start()
 
     @property
     def max_level(self) -> int:
@@ -734,7 +739,7 @@ class GameScreen(customtkinter.CTk):
                 command=lambda: self._copy_results(total_time, age_real),
             ).grid(row=0, column=1, padx=4, pady=10, sticky="ew")
             customtkinter.CTkButton(
-                self._results_bar, text="✕ Ganti Peserta",
+                self._results_bar, text="✕ Kembali ke Beranda",
                 font=(FONT.P, 14, "bold"),
                 fg_color=CLR.DANGER, hover_color=CLR.DANGER_HOVER,
                 text_color=CLR.TEXT, corner_radius=RADIUS.DEFAULT, height=52,

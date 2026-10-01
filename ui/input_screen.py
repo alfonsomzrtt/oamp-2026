@@ -4,6 +4,7 @@ ui/input_screen.py — App_Input: participant registration + camera setup screen
 
 from __future__ import annotations
 import sys
+import queue
 import threading
 import time
 from pathlib import Path
@@ -26,6 +27,7 @@ from core.camera import (
     enumerate_cameras, apply_calibration, apply_transforms,
 )
 from core.game_logic import save_env_value
+from core.detection import DetectionThread, DetectionResult
 from api.participants import verify as verify_participant
 from api.tournament import check_active_match
 
@@ -54,7 +56,10 @@ class InputScreen(customtkinter.CTk):
         self._available_cams: list[int] = []
         self._cek_in_progress  = False
         self._block_test_active = False
-        self._last_detections: list = []
+        self._block_test_frame_q = queue.Queue(maxsize=2)
+        self._block_test_result_q = queue.Queue(maxsize=2)
+        self._block_test_worker: DetectionThread | None = None
+        self._block_test_result: DetectionResult | None = None
         self._qr_detector      = None
         self._qr_available     = False
         self._qr_last_ts       = 0.0
@@ -484,91 +489,51 @@ class InputScreen(customtkinter.CTk):
             time.sleep(0.03)
 
     def _run_block_test_overlay(self, frame: np.ndarray) -> np.ndarray:
-        """Block detection overlay untuk mode tes — dijalankan setiap 15 frame."""
-        from config import USE_BANTAL_MODEL, YOLO_INFER_SIZE
-
-        if not hasattr(self, "_btest_frame_n"):
-            self._btest_frame_n = 0
-        self._btest_frame_n += 1
-
-        if self._btest_frame_n % 15 == 0:
+        """Submit frames and render the latest synchronized worker result."""
+        try:
+            self._block_test_frame_q.put_nowait(frame.copy())
+        except queue.Full:
             try:
-                if self._model is None:
-                    raise RuntimeError("Model deteksi belum tersedia")
-                if USE_BANTAL_MODEL:
-                    res = self._model(frame, verbose=False)
-                    self._last_detections = []
-                    if res and hasattr(res[0], "boxes"):
-                        for b in res[0].boxes:
-                            x1, y1, x2, y2 = b.xyxy[0].cpu().numpy()
-                            self._last_detections.append(
-                                [x1, y1, x2, y2, float(b.conf[0].cpu().numpy())]
-                            )
-                else:
-                    res = self._model(frame, size=YOLO_INFER_SIZE)
-                    self._last_detections = [
-                        r[:5] for r in res.pandas().xyxy[0].values.tolist()
-                    ]
-            except Exception:
-                self._last_detections = []
+                self._block_test_frame_q.get_nowait()
+            except queue.Empty:
+                pass
+            try:
+                self._block_test_frame_q.put_nowait(frame.copy())
+            except queue.Full:
+                pass
 
-        blurred = cv2.GaussianBlur(frame, (7, 7), 1)
-        gray    = cv2.cvtColor(blurred, cv2.COLOR_RGB2GRAY)
-        _, thres = cv2.threshold(gray, 175, 255, cv2.THRESH_BINARY)
+        while not self._block_test_result_q.empty():
+            try:
+                self._block_test_result = self._block_test_result_q.get_nowait()
+            except queue.Empty:
+                break
 
-        from core.detection import classify_face
-        box_count = 0
-        design    = []
-        confidence_scores = []
-        positions = []
-
-        for det in self._last_detections:
-            x1, y1, x2, y2, conf = int(det[0]), int(det[1]), int(det[2]), int(det[3]), float(det[4])
-            if conf <= 0.7:
-                continue
-            confidence_scores.append(conf)
-            fid = classify_face(thres, x1, y1, x2, y2)
-            if fid == 0:
-                continue
-            design.append(fid)
-            box_count += 1
-            positions.append(((x1 + x2) // 2, (y1 + y2) // 2))
-            cv2.rectangle(frame, (x1, y1), (x2, y2), (0, 255, 0), 2)
-            cv2.putText(
-                frame, f"Face {fid}", (x1, max(y1 - 8, 18)),
-                cv2.FONT_HERSHEY_SIMPLEX, 0.55, (0, 255, 0), 2,
-            )
-            self._draw_face_label(frame, fid, x1, y1)
+        result = self._block_test_result
+        if result is None:
+            return frame
 
         confidence = (
-            sum(confidence_scores) / len(confidence_scores)
-            if confidence_scores else 0.0
+            sum(box[4] for box in result.boxes) / len(result.boxes)
+            if result.boxes else 0.0
         )
-        result_text = f"Blok: {box_count} | Confidence: {confidence:.2f}"
-        if len(design) == 4:
-            for i in range(4):
-                for j in range(i + 1, 4):
-                    cv2.line(frame, positions[i], positions[j], (0, 0, 0), 2)
-            order = sorted(
-                range(4),
-                key=lambda i: (positions[i][0] >= (
-                    sorted(x for x, _ in positions)[1]
-                    + sorted(x for x, _ in positions)[2]
-                ) / 2, positions[i][1]),
-            )
-            sorted_design = [design[i] for i in order]
-            result_text += f" | Face: {design} | Urutan: {sorted_design}"
-
-        cv2.putText(frame, f"Blok: {box_count}", (12, 36),
-                    cv2.FONT_HERSHEY_SIMPLEX, 1.0, (0, 255, 0), 2)
-        cv2.putText(frame, f"Confidence: {confidence:.2f}", (12, 72),
-                    cv2.FONT_HERSHEY_SIMPLEX, 0.8, (0, 255, 0), 2)
-
-        ok = len(design) == 4
-        self.after(0, lambda t=result_text, o=ok: self._detect_result.configure(
-            text=t, text_color=CLR.SUCCESS if o else CLR.MUTED,
+        result_text = f"Blok: {result.block_count} | Confidence: {confidence:.2f}"
+        if result.is_complete:
+            result_text += f" | Face: {result.faces} | Urutan: {result.sorted_design}"
+        self.after(0, lambda t=result_text, ok=result.is_complete: self._detect_result.configure(
+            text=t, text_color=CLR.SUCCESS if ok else CLR.MUTED,
         ))
-        return frame
+
+        display = result.img_display.copy()
+        for index, (x1, y1, _, _, _) in enumerate(result.boxes):
+            cv2.putText(
+                display, f"Face {result.faces[index]}", (x1, max(y1 - 8, 18)),
+                cv2.FONT_HERSHEY_SIMPLEX, 0.55, (0, 255, 0), 2,
+            )
+        cv2.putText(display, f"Blok: {result.block_count}", (12, 36),
+                    cv2.FONT_HERSHEY_SIMPLEX, 1.0, (0, 255, 0), 2)
+        cv2.putText(display, f"Confidence: {confidence:.2f}", (12, 72),
+                    cv2.FONT_HERSHEY_SIMPLEX, 0.8, (0, 255, 0), 2)
+        return display
 
     def _draw_face_label(self, frame: np.ndarray, face_id: int, x1: int, y1: int):
         if not self._face_assets or face_id < 1 or face_id > len(self._face_assets):
@@ -653,16 +618,46 @@ class InputScreen(customtkinter.CTk):
 
     def _toggle_block_test(self):
         self._block_test_active = not self._block_test_active
-        self._last_detections   = []
         if self._block_test_active:
+            self._start_block_test_worker()
             self._detect_btn.configure(text="Stop Tes", fg_color=CLR.DANGER)
             self._detect_result.configure(
                 text="Deteksi aktif — blok di-highlight",
                 text_color=CLR.SUCCESS,
             )
         else:
+            self._stop_block_test_worker()
             self._detect_btn.configure(text="Tes Blok", fg_color=CLR.SUCCESS)
             self._detect_result.configure(text="")
+
+    def _start_block_test_worker(self):
+        from config import USE_BANTAL_MODEL, YOLO_INFER_SIZE
+        self._stop_block_test_worker()
+        self._block_test_result = None
+        self._block_test_worker = DetectionThread(
+            self._model,
+            USE_BANTAL_MODEL,
+            self._block_test_frame_q,
+            self._block_test_result_q,
+            yolo_infer_size=YOLO_INFER_SIZE,
+            face_assets=self._face_assets,
+        )
+        self._block_test_worker.start()
+
+    def _stop_block_test_worker(self):
+        if self._block_test_worker:
+            self._block_test_worker.stop()
+            self._block_test_worker = None
+        while not self._block_test_frame_q.empty():
+            try:
+                self._block_test_frame_q.get_nowait()
+            except queue.Empty:
+                break
+        while not self._block_test_result_q.empty():
+            try:
+                self._block_test_result_q.get_nowait()
+            except queue.Empty:
+                break
 
     # ── QR ────────────────────────────────────────────────────────────────────
 
@@ -834,12 +829,14 @@ class InputScreen(customtkinter.CTk):
 
     def _on_close(self):
         self._preview_running = False
+        self._stop_block_test_worker()
         self.user_cancelled   = True
         self.destroy()
         sys.exit(0)
 
     def destroy(self):
         self._preview_running = False
+        self._stop_block_test_worker()
         super().destroy()
 
     def report_callback_exception(self, exc, val, tb):
