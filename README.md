@@ -1,10 +1,3 @@
-PENTING: 
-# NUC dengan NDI aktif:
-CAMERA_INDEX=4
-# Tanpa NDI:
-CAMERA_INDEX=0
-
-
 # BDT Desktop App
 Cognitive assessment desktop client — block design test with YOLO hand detection, MediaPipe hand tracking, ESP32 physical button support, multiplayer duel mode, and tournament cup mode.
 
