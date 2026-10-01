@@ -17,7 +17,7 @@ Cognitive assessment desktop client — block design test with YOLO hand detecti
 
 ## Prerequisites
 
-- Python 3.9+
+- Python 3.12+
 - Camera (built-in or USB webcam)
 - Optional: ESP32 with buttons (for `BUTTON_MODE`)
 
