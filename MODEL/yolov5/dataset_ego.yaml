@@ -1,0 +1,26 @@
+path: ../data_ego #C:\Users\Azhar Aulia Saputra\MY_CODE\YOLOv5\data_ego
+train: images
+val: images
+#test:  # test images (optional)
+
+# Classes
+nc: 18  # number of classes
+names: [ 
+  'dog',
+  'person',
+  'cat',
+  'tv',
+  'car',
+  'meatballs',
+  'marinara sauce',
+  'tomato soup',
+  'chicken noodle soup',
+  'french onion soup',
+  'chicken breast',
+  'ribs',
+  'pulled pork',
+  'hamburger',
+  'cavity',
+  'phone',
+  'block',
+  'hand']  # class names

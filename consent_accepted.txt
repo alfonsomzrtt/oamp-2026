@@ -1,0 +1,5 @@
+{
+  "accepted": true,
+  "consent_version": "1.0",
+  "timestamp": "2026-09-02T17:15:46.646263"
+}
