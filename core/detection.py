@@ -23,8 +23,9 @@ import numpy as np
 
 # ── Face classification ───────────────────────────────────────────────────────
 
-# 4 sample points di patch 100x100 (row, col): top, right, bottom, left
-_SAMPLE_POINTS = [(25, 50), (50, 75), (75, 50), (50, 25)]
+# Keep the same sampling order as the stable monolithic implementation:
+# left, bottom, right, top.
+_SAMPLE_POINTS = [(50, 25), (75, 50), (50, 75), (25, 50)]
 
 # pixel pattern → face id
 _FACE_PATTERNS: dict[tuple[int, ...], int] = {

@@ -37,8 +37,10 @@ class InputScreen(customtkinter.CTk):
     Setelah destroy(), STATE sudah terisi nick_name / uid / mode.
     """
 
-    def __init__(self):
+    def __init__(self, model=None, face_assets=()):
         super().__init__()
+        self._model = model
+        self._face_assets = face_assets
         self.user_cancelled = False
         self.title("Block Design Test")
         self.geometry("640x780")
@@ -484,7 +486,6 @@ class InputScreen(customtkinter.CTk):
     def _run_block_test_overlay(self, frame: np.ndarray) -> np.ndarray:
         """Block detection overlay untuk mode tes — dijalankan setiap 15 frame."""
         from config import USE_BANTAL_MODEL, YOLO_INFER_SIZE
-        import main as _main   # model_yolo di-load di main
 
         if not hasattr(self, "_btest_frame_n"):
             self._btest_frame_n = 0
@@ -492,8 +493,10 @@ class InputScreen(customtkinter.CTk):
 
         if self._btest_frame_n % 15 == 0:
             try:
+                if self._model is None:
+                    raise RuntimeError("Model deteksi belum tersedia")
                 if USE_BANTAL_MODEL:
-                    res = _main.model_yolo(frame, verbose=False)
+                    res = self._model(frame, verbose=False)
                     self._last_detections = []
                     if res and hasattr(res[0], "boxes"):
                         for b in res[0].boxes:
@@ -502,7 +505,7 @@ class InputScreen(customtkinter.CTk):
                                 [x1, y1, x2, y2, float(b.conf[0].cpu().numpy())]
                             )
                 else:
-                    res = _main.model_yolo(frame, size=YOLO_INFER_SIZE)
+                    res = self._model(frame, size=YOLO_INFER_SIZE)
                     self._last_detections = [
                         r[:5] for r in res.pandas().xyxy[0].values.tolist()
                     ]
@@ -516,30 +519,68 @@ class InputScreen(customtkinter.CTk):
         from core.detection import classify_face
         box_count = 0
         design    = []
+        confidence_scores = []
+        positions = []
 
         for det in self._last_detections:
             x1, y1, x2, y2, conf = int(det[0]), int(det[1]), int(det[2]), int(det[3]), float(det[4])
             if conf <= 0.7:
                 continue
+            confidence_scores.append(conf)
             fid = classify_face(thres, x1, y1, x2, y2)
             if fid == 0:
                 continue
             design.append(fid)
             box_count += 1
+            positions.append(((x1 + x2) // 2, (y1 + y2) // 2))
             cv2.rectangle(frame, (x1, y1), (x2, y2), (0, 255, 0), 2)
+            cv2.putText(
+                frame, f"Face {fid}", (x1, max(y1 - 8, 18)),
+                cv2.FONT_HERSHEY_SIMPLEX, 0.55, (0, 255, 0), 2,
+            )
+            self._draw_face_label(frame, fid, x1, y1)
 
-        result_text = f"Blok: {box_count} | Det: {len(self._last_detections)}"
+        confidence = (
+            sum(confidence_scores) / len(confidence_scores)
+            if confidence_scores else 0.0
+        )
+        result_text = f"Blok: {box_count} | Confidence: {confidence:.2f}"
         if len(design) == 4:
-            result_text += f" | Urutan: {design}"
+            for i in range(4):
+                for j in range(i + 1, 4):
+                    cv2.line(frame, positions[i], positions[j], (0, 0, 0), 2)
+            order = sorted(
+                range(4),
+                key=lambda i: (positions[i][0] >= (
+                    sorted(x for x, _ in positions)[1]
+                    + sorted(x for x, _ in positions)[2]
+                ) / 2, positions[i][1]),
+            )
+            sorted_design = [design[i] for i in order]
+            result_text += f" | Face: {design} | Urutan: {sorted_design}"
 
         cv2.putText(frame, f"Blok: {box_count}", (12, 36),
                     cv2.FONT_HERSHEY_SIMPLEX, 1.0, (0, 255, 0), 2)
+        cv2.putText(frame, f"Confidence: {confidence:.2f}", (12, 72),
+                    cv2.FONT_HERSHEY_SIMPLEX, 0.8, (0, 255, 0), 2)
 
         ok = len(design) == 4
         self.after(0, lambda t=result_text, o=ok: self._detect_result.configure(
             text=t, text_color=CLR.SUCCESS if o else CLR.MUTED,
         ))
         return frame
+
+    def _draw_face_label(self, frame: np.ndarray, face_id: int, x1: int, y1: int):
+        if not self._face_assets or face_id < 1 or face_id > len(self._face_assets):
+            return
+        face_img, face_mask = self._face_assets[face_id - 1]
+        roi = frame[y1:y1 + 50, x1:x1 + 50]
+        if roi.shape == (50, 50, 3):
+            try:
+                roi[np.where(face_mask)] = 0
+                roi += face_img
+            except Exception:
+                pass
 
     # ── Camera controls ───────────────────────────────────────────────────────
 
