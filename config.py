@@ -92,7 +92,7 @@ def remap_slider(val: int, attr: str) -> int:
     return round(mn + (val / 255) * (mx - mn))
 
 
-# ── YOLO / Model ──────────────────────────────────────────────────────────────
+# ── YOLO / Model ───────────────────────────────────z───────────────────────────
 
 USE_BANTAL_MODEL = _get_bool("MODEL_BANTAL", False)
 YOLO_INFER_SIZE  = _get_int("YOLO_INFER_SIZE", 640)

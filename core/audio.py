@@ -7,16 +7,24 @@ play_sfx() dan play_audio() aman dipanggil dari daemon thread.
 
 from __future__ import annotations
 from pathlib import Path
+import queue
 import threading
+import time
 import numpy as np
 
 from config import BASE_DIR
 
 
 _AUDIO_DIR = BASE_DIR / "AUDIO"
+AUDIO_DIR = _AUDIO_DIR
 # Set False untuk memakai tone procedural dari _SFX_BUILDERS.
-USE_WAV_SFX = False
+USE_WAV_SFX = True
 _AUDIO_LOCK = threading.Lock()
+_AUDIO_REQUEST_LOCK = threading.Lock()
+_AUDIO_QUEUE: queue.Queue[tuple[str, int | None, threading.Event | None] | None] = queue.Queue(maxsize=1)
+_AUDIO_WORKER: threading.Thread | None = None
+_AUDIO_LAST_EFFECT: str | None = None
+_AUDIO_LAST_TS = 0.0
 _WAV_EFFECTS = {
     "correct": "sfx_correct.wav",
     "correct_alt": "sfx_correct_alt.wav",
@@ -35,12 +43,25 @@ _WAV_EFFECTS = {
 
 # ── Playback ──────────────────────────────────────────────────────────────────
 
+def _play_audio_data(data: np.ndarray, samplerate: int) -> None:
+    """Main audio playback, serialized by the worker and never called directly from GUI threads."""
+    import sounddevice as sd
+
+    if data.ndim == 1:
+        data = data.reshape(-1, 1)
+
+    with _AUDIO_LOCK:
+        # Start playback asynchronously so caller thread is never blocked, but wait
+        # until the current effect is finished before the next queued item starts.
+        sd.play(data, samplerate, blocking=False)
+        sd.wait()
+
+
 def play_audio(wav):
     """
     Putar audio.
     wav: filepath (str/Path) atau numpy array.
     """
-    import sounddevice as sd
     import soundfile as sf
 
     if isinstance(wav, (str, Path)):
@@ -52,12 +73,73 @@ def play_audio(wav):
         data = np.asarray(wav)
         samplerate = 22050
 
-    if data.ndim == 1:
-        data = data.reshape(-1, 1)
+    _play_audio_data(data, samplerate)
 
-    with _AUDIO_LOCK:
-        sd.play(data, samplerate)
-        sd.wait()
+
+def play_utterance_pair(first_path: str | Path, second_path: str | Path) -> None:
+    """Join two compatible WAV files and play them as one continuous stream."""
+    import soundfile as sf
+
+    first_data, first_rate = sf.read(str(first_path), dtype="float32", always_2d=True)
+    second_data, second_rate = sf.read(str(second_path), dtype="float32", always_2d=True)
+
+    if first_rate != second_rate:
+        raise ValueError("Utterance WAV files must use the same sample rate")
+    if first_data.shape[1] != second_data.shape[1]:
+        raise ValueError("Utterance WAV files must use the same number of channels")
+
+    combined_data = np.concatenate((first_data, second_data), axis=0)
+    _play_audio_data(combined_data, first_rate)
+
+
+def _start_audio_worker() -> None:
+    global _AUDIO_WORKER
+    if _AUDIO_WORKER is not None and _AUDIO_WORKER.is_alive():
+        return
+
+    def _worker_loop() -> None:
+        while True:
+            item = _AUDIO_QUEUE.get()
+            if item is None:
+                _AUDIO_QUEUE.task_done()
+                break
+
+            effect, level, done_event = item
+            try:
+                _play_effect(effect, level=level)
+            except Exception as exc:  # pragma: no cover - logging only
+                print(f">>> [audio] worker failed for {effect!r}: {exc}")
+            finally:
+                if done_event is not None:
+                    done_event.set()
+                _AUDIO_QUEUE.task_done()
+
+    _AUDIO_WORKER = threading.Thread(target=_worker_loop, name="AudioWorker", daemon=True)
+    _AUDIO_WORKER.start()
+
+
+def _play_effect(effect: str, *, level: int | None = None) -> None:
+    """Play a single effect synchronously from the worker thread."""
+    import sounddevice as sd
+    import soundfile as sf
+
+    builder = _SFX_BUILDERS.get(effect)
+    if builder is None:
+        print(f">>> [audio] Unknown effect: {effect!r}")
+        return
+
+    if USE_WAV_SFX:
+        wav_name = _WAV_EFFECTS.get(effect, "")
+        if effect == "next_level" and level in range(2, 9):
+            wav_name = f"lanjut_lvl{level}.wav"
+        wav_path = _AUDIO_DIR / (wav_name or "")
+        if wav_path.is_file():
+            data, samplerate = sf.read(str(wav_path), dtype="float32")
+            _play_audio_data(data, samplerate)
+            return
+
+    tone = builder()
+    _play_audio_data(tone.reshape(-1, 1), SR)
 
 
 # ── Tone synthesis ────────────────────────────────────────────────────────────
@@ -237,38 +319,37 @@ def play_sfx(
     wait: bool = False,
 ):
     """
-    Putar SFX pendek secara synchronous.
-    Panggil dari daemon thread agar tidak block GUI:
-
-        threading.Thread(target=lambda: play_sfx("amazing"), daemon=True).start()
+    Putar SFX pendek secara asynchronous via dedicated audio worker.
+    API tetap kompatibel dengan pemanggilan lama, termasuk param wait=True.
     """
-    import sounddevice as sd
-    import soundfile as sf
+    global _AUDIO_LAST_EFFECT, _AUDIO_LAST_TS
 
-    builder = _SFX_BUILDERS.get(effect)
-    if builder is None:
-        print(f">>> [audio] Unknown effect: {effect!r}")
-        return
-    try:
-        with _AUDIO_LOCK:
-            if USE_WAV_SFX:
-                wav_name = _WAV_EFFECTS.get(effect, "")
-                if effect == "next_level" and level in range(2, 9):
-                    wav_name = f"lanjut_lvl{level}.wav"
-                wav_path = _AUDIO_DIR / (wav_name or "")
-                if wav_path.is_file():
-                    data, samplerate = sf.read(str(wav_path), dtype="float32")
-                    if data.ndim == 1:
-                        data = data.reshape(-1, 1)
-                    sd.play(data, samplerate)
-                    sd.wait()
-                    return
+    _start_audio_worker()
 
-            tone = builder()
-            sd.play(tone.reshape(-1, 1), SR)
-            sd.wait()
-    except Exception as e:
-        print(f">>> [audio] play_sfx({effect!r}) failed: {e}")
+    done_event = threading.Event() if wait else None
+    now = time.monotonic()
+
+    with _AUDIO_REQUEST_LOCK:
+        # Drop stale queued requests when the game emits rapid consecutive effects.
+        if _AUDIO_LAST_EFFECT == effect and (now - _AUDIO_LAST_TS) < 0.20:
+            if done_event is not None:
+                done_event.set()
+            return
+
+        try:
+            _AUDIO_QUEUE.put_nowait((effect, level, done_event))
+        except queue.Full:
+            try:
+                _AUDIO_QUEUE.get_nowait()
+            except queue.Empty:
+                pass
+            _AUDIO_QUEUE.put_nowait((effect, level, done_event))
+
+        _AUDIO_LAST_EFFECT = effect
+        _AUDIO_LAST_TS = now
+
+    if wait and done_event is not None:
+        done_event.wait()
 
 
 def sfx_for_time(elapsed: float) -> str:

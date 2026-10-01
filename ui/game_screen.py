@@ -26,7 +26,7 @@ from ui.theme import CLR, FONT, RADIUS
 from ui.widgets import SectionLabel, BorderedImageFrame, StatCard, LevelTimeRow
 from core.camera import CameraThread, open_camera
 from core.detection import DetectionThread, DetectionResult
-from core.audio import play_sfx, sfx_for_time
+from core.audio import AUDIO_DIR, play_sfx, sfx_for_time, play_utterance_pair
 from core.serial_reader import SerialReaderThread
 from core.game_logic import (
     estimate_cognitive_age, compute_visuo_spatial,
@@ -398,12 +398,21 @@ class GameScreen(customtkinter.CTk):
 
     # ── Game flow ─────────────────────────────────────────────────────────────
 
+    # def _on_start_btn(self):
+    #     self.button_0.grid_remove()
+    #     self._show_level_btn(self.current_question)
+    #     play_sfx("countdown")
+    #     self._show_countdown(3, on_done=self._start_game)
+    
     def _on_start_btn(self):
         self.button_0.grid_remove()
         self._show_level_btn(self.current_question)
-        play_sfx("countdown")
-        self._show_countdown(3, on_done=self._start_game)
-
+        threading.Thread(
+            target=lambda: play_sfx("countdown"),
+            daemon=True
+        ).start()
+        self.after(2000,lambda:self._show_countdown(3, on_done=self._start_game))
+        
     def _start_game(self):
         self.current_variant = get_variant(self.current_question)
         self._load_level_image(self.current_variant)
@@ -475,57 +484,121 @@ class GameScreen(customtkinter.CTk):
         self._handle_button_mode()
         self._schedule_poll()
 
-    # ── Answer check (state machine, no I/O) ─────────────────────────────────
+    # # ── Answer check (state machine, no I/O) ─────────────────────────────────
 
-    def _check_answer(self, sorted_design: list):
-        lvl = self.current_question
-        if not self._task_flags.get(lvl, False):
-            return
-        expected = LEVEL_ANSWERS.get(self.current_variant, [])
-        if sorted_design != expected:
-            return
+    # def _check_answer(self, sorted_design: list):
+    #     lvl = self.current_question
+    #     if not self._task_flags.get(lvl, False):
+    #         return
+    #     expected = LEVEL_ANSWERS.get(self.current_variant, [])
+    #     if sorted_design != expected:
+    #         return
 
-        # Level complete
-        elapsed = round(time.time() - self.start_task, 2)
-        self.timer_task_all.append(elapsed)
-        self.cognitive_age_list.append(estimate_cognitive_age(elapsed))
-        self.variant_played_list.append(self.current_variant)
-        self._task_flags[lvl] = False
+    #     # Level complete
+    #     elapsed = round(time.time() - self.start_task, 2)
+    #     self.timer_task_all.append(elapsed)
+    #     self.cognitive_age_list.append(estimate_cognitive_age(elapsed))
+    #     self.variant_played_list.append(self.current_variant)
+    #     self._task_flags[lvl] = False
 
-        print(f"TASK {lvl} COMPLETED in {elapsed}s")
-        threading.Thread(target=lambda: play_sfx("correct"), daemon=True).start()
+    #     print(f"TASK {lvl} COMPLETED in {elapsed}s")
+    #     threading.Thread(target=lambda: play_sfx("correct"), daemon=True).start()
+    #     _fire_event("level_complete", level=lvl, time_sec=elapsed)
+    #     self._update_badge(lvl, state="completed")
+
+    #     if lvl >= self.max_level:
+    #         def _finish_level_audio():
+    #             play_sfx(sfx_for_time(elapsed), wait=True)
+    #             self.after(0, self.end_test)
+
+    #         threading.Thread(target=_finish_level_audio, daemon=True).start()
+    #         return
+
+    #     # Advance
+    #     self.current_question = lvl + 1
+    #     self.current_variant  = get_variant(self.current_question)
+    #     self._load_level_image(self.current_variant)
+    #     self._current_level_btn.grid_remove()
+    #     self._show_level_btn(self.current_question)
+    #     self.start_task = time.time()
+    #     _fire_event("level_start", level=self.current_question)
+    #     self._reset_timer()
+    #     self._start_timer()
+    #     def _play_level_transition_audio():
+    #         play_sfx(sfx_for_time(elapsed), wait=True)
+    #         play_sfx("next_level", level=self.current_question, wait=True)
+
+    #     threading.Thread(
+    #         target=_play_level_transition_audio,
+    #         daemon=True,
+    #     ).start()
+
+    # @property
+    # def max_level(self) -> int:
+    #     return MAX_LEVEL
+
+    def _check_answer(self, sorted_design: list): 
+        lvl = self.current_question 
+        if not self._task_flags.get(lvl, False): 
+            return 
+        expected = LEVEL_ANSWERS.get(self.current_variant, []) 
+        if sorted_design != expected: 
+            return 
+
+        # Level complete 
+        elapsed = round(time.time() - self.start_task, 2) 
+        self.timer_task_all.append(elapsed) 
+        self.cognitive_age_list.append(estimate_cognitive_age(elapsed)) 
+        self.variant_played_list.append(self.current_variant) 
+        self._task_flags[lvl] = False 
+
+        print(f"TASK {lvl} COMPLETED in {elapsed}s") 
+
         _fire_event("level_complete", level=lvl, time_sec=elapsed)
         self._update_badge(lvl, state="completed")
 
+        # KONDISI 1: Jika sudah Level Terakhir (Level 8 / max_level)
         if lvl >= self.max_level:
             def _finish_level_audio():
-                play_sfx(sfx_for_time(elapsed), wait=True)
+                # Level 8: HANYA memanggil suara selesai (tanpa correct)
+                play_sfx("complete", wait=True)  # Memutar selesai.wav secara utuh
                 self.after(0, self.end_test)
 
-            threading.Thread(target=_finish_level_audio, daemon=True).start()
+            threading.Thread(
+                target=_finish_level_audio,
+                daemon=True
+            ).start()
             return
+        
+        # Advance 
+        self.current_question = lvl + 1 
+        self.current_variant  = get_variant(self.current_question) 
+        self._load_level_image(self.current_variant) 
+        self._current_level_btn.grid_remove() 
+        self._show_level_btn(self.current_question) 
+        self.start_task = time.time() 
+        _fire_event("level_start", level=self.current_question) 
+        self._reset_timer() 
+        self._start_timer() 
 
-        # Advance
-        self.current_question = lvl + 1
-        self.current_variant  = get_variant(self.current_question)
-        self._load_level_image(self.current_variant)
-        self._current_level_btn.grid_remove()
-        self._show_level_btn(self.current_question)
-        self.start_task = time.time()
-        _fire_event("level_start", level=self.current_question)
-        self._reset_timer()
-        self._start_timer()
         def _play_level_transition_audio():
-            play_sfx(sfx_for_time(elapsed), wait=True)
-            # Transition voice is temporarily disabled; keep motivation audio first.
+            correct_path = AUDIO_DIR / "sfx_correct.wav"
+            next_path = AUDIO_DIR / f"lanjut_lvl{self.current_question}.wav"
+
+            if correct_path.is_file() and next_path.is_file():
+                play_utterance_pair(correct_path, next_path)
+                return
+
+            play_sfx("correct", wait=True)
+            play_sfx("next_level", level=self.current_question, wait=True)
 
         threading.Thread(
             target=_play_level_transition_audio,
             daemon=True,
         ).start()
 
-    @property
-    def max_level(self) -> int:
+    @property 
+    def max_level(self) -> int: 
         return MAX_LEVEL
 
     # ── Skip ──────────────────────────────────────────────────────────────────
@@ -579,7 +652,6 @@ class GameScreen(customtkinter.CTk):
             )
             visuo_spatial = compute_visuo_spatial(age_real, age_cog)
 
-        threading.Thread(target=lambda: play_sfx("complete"), daemon=True).start()
         self._show_celebration("TES SELESAI!", duration=2500)
         self.after(2500, lambda: self._finish_test(
             total_time, age_real, age_cog, visuo_spatial,

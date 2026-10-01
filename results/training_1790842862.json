@@ -1,0 +1,39 @@
+{
+  "uid": "",
+  "mode": "training",
+  "nick_name": "training_user",
+  "gender": "",
+  "age": 0,
+  "task01": 6.47,
+  "task02": 10.23,
+  "task03": 6.58,
+  "task04": 11.7,
+  "task05": 12.91,
+  "task06": 10.58,
+  "task07": 13.19,
+  "task08": 9.2,
+  "task_avg": 10.1075,
+  "cognitive_age": 27,
+  "visuo_spatial": 73,
+  "cog_age_list": [
+    20,
+    26,
+    20,
+    33,
+    37,
+    27,
+    37,
+    20
+  ],
+  "variant_list": [
+    "1d",
+    "2a",
+    "3d",
+    "4b",
+    "5a",
+    "6c",
+    "7a",
+    "8a"
+  ],
+  "client_ts": 1790842862
+}
