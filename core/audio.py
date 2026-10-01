@@ -18,6 +18,9 @@ _AUDIO_DIR = BASE_DIR / "AUDIO"
 USE_WAV_SFX = False
 _AUDIO_LOCK = threading.Lock()
 _WAV_EFFECTS = {
+    "correct": "sfx_correct.wav",
+    "correct_alt": "sfx_correct_alt.wav",
+    "game_finished": "sfx_game_finished.wav",
     "amazing": "menakjubkan.wav",
     "great": "hebat_sekali.wav",
     "solid": "mantap.wav",
@@ -181,6 +184,47 @@ def _skip():
         _tone(523, 0.04, SR, 0.20, [H(0.15, 2)]),
         _gap(SR, 10),
         _tone(392, 0.10, SR, 0.22, [H(0.15, 2)]),
+    ])
+
+@_sfx("correct")
+def _correct():
+    """Soft confirmation: a precise tap followed by a warm resolving tone."""
+    return np.concatenate([
+        _tone(392, 0.075, SR, 0.15, [H(0.18, 2), H(0.06, 3)]),
+        _gap(SR, 32),
+        _tone(587, 0.09, SR, 0.18, [H(0.12, 2)]),
+        _gap(SR, 26),
+        _tone(784, 0.22, SR, 0.13, [H(0.18, 2), H(0.05, 3)]),
+    ])
+
+@_sfx("correct_alt")
+def _correct_alt():
+    """Digital-soft confirmation with a quick up-and-down contour."""
+    return np.concatenate([
+        _tone(330, 0.07, SR, 0.13, [H(0.12, 2)]),
+        _gap(SR, 18),
+        _tone(660, 0.09, SR, 0.15, [H(0.10, 2)]),
+        _gap(SR, 16),
+        _tone(988, 0.10, SR, 0.12, [H(0.08, 2)]),
+        _gap(SR, 18),
+        _tone(660, 0.15, SR, 0.10, [H(0.12, 2)]),
+    ])
+
+@_sfx("game_finished")
+def _game_finished():
+    """Bold fanfare for the end-of-game results screen."""
+    return np.concatenate([
+        _tone(262, 0.13, SR, 0.22, [H(0.16, 2), H(0.06, 3)]),
+        _gap(SR, 18),
+        _tone(330, 0.13, SR, 0.24, [H(0.15, 2), H(0.05, 3)]),
+        _gap(SR, 18),
+        _tone(392, 0.15, SR, 0.26, [H(0.14, 2), H(0.05, 3)]),
+        _gap(SR, 35),
+        _tone(523, 0.14, SR, 0.28, [H(0.16, 2), H(0.06, 3)]),
+        _gap(SR, 16),
+        _tone(659, 0.16, SR, 0.30, [H(0.15, 2), H(0.06, 3)]),
+        _gap(SR, 25),
+        _tone(784, 0.56, SR, 0.34, [H(0.20, 2), H(0.10, 3), H(0.04, 4)]),
     ])
 
 

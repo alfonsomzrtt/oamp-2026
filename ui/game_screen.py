@@ -493,6 +493,7 @@ class GameScreen(customtkinter.CTk):
         self._task_flags[lvl] = False
 
         print(f"TASK {lvl} COMPLETED in {elapsed}s")
+        threading.Thread(target=lambda: play_sfx("correct"), daemon=True).start()
         _fire_event("level_complete", level=lvl, time_sec=elapsed)
         self._update_badge(lvl, state="completed")
 
