@@ -1,7 +1,7 @@
 from PIL import Image
 
 # 1. Buka file gambar hasil download/generasi
-input_image_path = "Gemini_Generated_Image_2douia2douia2dou.jpg"  # Sesuaikan dengan nama file gambarmu
+input_image_path = "asset1.jpg"  # Sesuaikan dengan nama file gambarmu
 
 # 2. Buka gambar dengan Pillow
 img = Image.open(input_image_path)

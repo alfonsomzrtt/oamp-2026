@@ -4,7 +4,7 @@ CLAUDE.md
 
 run.bat
 /src/
-.env/
+.env
 /oamp_venv/
 __pycache__/
 *.pyc
@@ -12,6 +12,13 @@ testing_tts.py
 TTS_TEST/
 agents.md
 *.log
+
+#files and folder
+sine_wave.py
+run_oamp.sh
+tesmodel.py
+generate_bgm_preview.py
+MODEL/onnx/
 
 ### CircuitPython ###
 .Trashes
