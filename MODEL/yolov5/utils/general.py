@@ -44,7 +44,8 @@ try:
     import pkg_resources as pkg
 except ImportError:
     import importlib.metadata as pkg
-
+    from packaging.version import parse as _pv
+    pkg.parse_version = _pv
 
 FILE = Path(__file__).resolve()
 ROOT = FILE.parents[1]  # YOLOv5 root directory

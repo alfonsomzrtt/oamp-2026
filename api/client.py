@@ -30,7 +30,10 @@ def post(url: str, payload: dict, timeout: int = 10) -> bool:
             resp = requests.post(url, json=payload, timeout=timeout)
             if 200 <= resp.status_code < 300:
                 return True
-            print(f">>> [API] POST {url} → {resp.status_code} (attempt {attempt+1}/{_MAX_RETRIES})")
+
+            print(f">>> [API] POST {url} → {resp.status_code}")
+            print(f">>> [API] Payload: {resp.request.body}")
+            print(f">>> [API] Response: {resp.text}")
         except Exception as e:
             print(f">>> [API] POST {url} error: {e} (attempt {attempt+1}/{_MAX_RETRIES})")
 
@@ -50,12 +53,20 @@ def get(url: str, timeout: int = 5):
 
     try:
         resp = requests.get(url, timeout=timeout)
+
+        print(f">>> [API] GET {url}")
+        print(f">>> [API] Status: {resp.status_code}")
+        print(f">>> [API] Response: {resp.text}")
+
         if resp.status_code == 200:
             return True, resp.json()
+
         return False, {}
+
     except Exception as e:
         print(f">>> [API] GET {url} error: {e}")
         return False, {}
+
 
 
 def save_backup(filename: str, payload: dict):

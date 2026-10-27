@@ -352,7 +352,9 @@ class RoomScreen(customtkinter.CTk):
         def _do():
             resp = requests.post(
                 f"{API_SERVER_URL}/api/rooms",
-                json={"player_name": STATE.nick_name}, timeout=5,
+                json={"player_name": STATE.nick_name, 
+                      "player_uid": STATE.current_participant_uid
+                      }, timeout=5,
             )
             resp.raise_for_status()
             return resp.json()
@@ -367,13 +369,26 @@ class RoomScreen(customtkinter.CTk):
 
     def _join_by_id(self, code: str):
         import requests
+
         def _do():
+            url = f"{API_SERVER_URL}/api/rooms/{code}/join"
+            print(f"[JOIN DEBUG] URL = {url!r}")
+            
             resp = requests.post(
-                f"{API_SERVER_URL}/api/rooms/{code}/join",
-                json={"player_name": STATE.nick_name}, timeout=5,
+                url,
+                json={
+                    "player_name": STATE.nick_name,
+                    "player_uid": STATE.current_participant_uid,
+                },
+                timeout=5,
             )
+            print(f"[JOIN DEBUG] Sent URL = {resp.request.url!r}")
+            
+            print(f"[JOIN DEBUG] Status={resp.status_code}, Body={resp.text}")
+
             resp.raise_for_status()
             return resp.json()
+
         self._api_call(_do, self._on_joined, self._show_err)
 
     def _on_joined(self, room: dict):

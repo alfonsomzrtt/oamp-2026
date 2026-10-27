@@ -6,7 +6,7 @@ sebagai satu AppState instance (singleton: STATE).
 
 Cara pakai:
     from state import STATE
-    STATE.nick_name = "Alfonso"
+    STATE.nick_name = "Al Faris"
     STATE.is_multiplayer = True
 """
 
