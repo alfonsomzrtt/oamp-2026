@@ -113,14 +113,7 @@ if __name__ == "__main__":
         from ui.input_screen import InputScreen
         inp = InputScreen(model=model, face_assets=face_assets)
         inp.after(200, inp.start_camera_preview)
-<<<<<<< HEAD
-        inp.after(100, lambda: (
-            inp.attributes("-zoomed", True) if sys.platform == "linux"
-            else inp.state("zoomed")
-        ))
-=======
         maximize_window(inp)
->>>>>>> rewrite-pr
         inp.mainloop()
 
         # User tutup window tanpa selesai input
