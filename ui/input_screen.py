@@ -21,6 +21,7 @@ from config import (
 )
 from state import STATE
 from ui.theme import CLR, FONT, RADIUS
+from ui.window_utils import maximize_window
 from ui.widgets import UIDEntryFrame
 from core.camera import (
     open_camera, release_camera, read_frame,
@@ -76,6 +77,7 @@ class InputScreen(customtkinter.CTk):
         self._build_content()
         self._init_qr()
         self._update_mode_buttons()
+        maximize_window(self)
 
     # ── Title bar ─────────────────────────────────────────────────────────────
 
@@ -412,14 +414,30 @@ class InputScreen(customtkinter.CTk):
         self._preview_running = True
         threading.Thread(target=self._detect_cams_then_preview, daemon=True).start()
 
+    def _post_preview_callback(self, callback):
+        if not self._preview_running:
+            return
+        try:
+            self.after(0, callback)
+        except Exception:
+            pass
+
     def _detect_cams_then_preview(self):
         available = enumerate_cameras()
+        if not self._preview_running:
+            return
         self._available_cams = available
         if available:
             labels = [f"Kamera {i}" for i in available]
-            self.after(0, lambda: self._update_cam_dropdown(labels, available))
+            self._post_preview_callback(
+                lambda: self._update_cam_dropdown(labels, available)
+            )
         else:
-            self.after(0, lambda: self._update_cam_dropdown(["Tidak ada kamera"], []))
+            self._post_preview_callback(
+                lambda: self._update_cam_dropdown(["Tidak ada kamera"], [])
+            )
+        if not self._preview_running:
+            return
         open_camera(STATE.camera_index)
         threading.Thread(target=self._preview_loop, daemon=True).start()
 
@@ -458,7 +476,9 @@ class InputScreen(customtkinter.CTk):
                         data, _, _ = self._qr_detector.detectAndDecode(frame)
                         if data and data.strip():
                             self._qr_last_ts = time.time()
-                            self.after(0, lambda u=data.strip(): self._on_qr_detected(u))
+                            self._post_preview_callback(
+                                lambda u=data.strip(): self._on_qr_detected(u)
+                            )
                     except Exception:
                         pass
 
@@ -482,7 +502,9 @@ class InputScreen(customtkinter.CTk):
                 img    = Image.fromarray(frame).resize((nw, nh), Image.LANCZOS)
                 imgtk  = ImageTk.PhotoImage(img)
                 self._current_imgtk = imgtk
-                self.after(0, lambda im=imgtk: self._preview_lbl.configure(image=im))
+                self._post_preview_callback(
+                    lambda im=imgtk: self._preview_lbl.configure(image=im)
+                )
 
             except Exception:
                 pass
@@ -519,9 +541,11 @@ class InputScreen(customtkinter.CTk):
         result_text = f"Blok: {result.block_count} | Confidence: {confidence:.2f}"
         if result.is_complete:
             result_text += f" | Face: {result.faces} | Urutan: {result.sorted_design}"
-        self.after(0, lambda t=result_text, ok=result.is_complete: self._detect_result.configure(
-            text=t, text_color=CLR.SUCCESS if ok else CLR.MUTED,
-        ))
+        self._post_preview_callback(
+            lambda t=result_text, ok=result.is_complete: self._detect_result.configure(
+                text=t, text_color=CLR.SUCCESS if ok else CLR.MUTED,
+            )
+        )
 
         display = result.img_display.copy()
         for index, (x1, y1, _, _, _) in enumerate(result.boxes):

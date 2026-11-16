@@ -24,7 +24,8 @@ from PIL import Image, ImageTk
 from config import DISPLAY_HALF, HIDE_CAMERA, BUTTON_MODE, MAX_LEVEL, LEVEL_ANSWERS, get_variant
 from state import STATE
 from ui.theme import CLR, FONT, RADIUS
-from ui.widgets import SectionLabel, BorderedImageFrame, StatCard, LevelTimeRow
+from ui.window_utils import maximize_window
+from ui.widgets import SectionLabel, BorderedImageFrame, StatCard, LevelTimeRow, format_seconds
 from core.camera import CameraThread, open_camera
 from core.detection import DetectionThread, DetectionResult
 from core.audio import AUDIO_DIR, play_sfx, sfx_for_time, play_utterance_pair
@@ -135,7 +136,8 @@ class GameScreen(customtkinter.CTk):
                 text="⏳ Menunggu lawan...", state="disabled", fg_color=CLR.CARD,
             )
             self._setup_ws()
-            self.after(200, self._retry_send_ready)
+
+        maximize_window(self)
 
     # ── UI build ──────────────────────────────────────────────────────────────
 
@@ -228,14 +230,13 @@ class GameScreen(customtkinter.CTk):
 
         # Celebration flash
         self._celebration = customtkinter.CTkFrame(
-            self._top, fg_color=CLR.SUCCESS, corner_radius=RADIUS.DEFAULT,
+            self._design_frame, fg_color=CLR.SUCCESS, corner_radius=RADIUS.DEFAULT,
         )
         self._celebration_lbl = customtkinter.CTkLabel(
             self._celebration, text="",
             font=(FONT.P, 38, "bold"), text_color=CLR.BG,
         )
         self._celebration_lbl.place(relx=0.5, rely=0.5, anchor="center")
-        self._build_pattern_window()
 
     def _build_left_panel(self):
         px = 10 if DISPLAY_HALF else 20
@@ -313,11 +314,60 @@ class GameScreen(customtkinter.CTk):
             b.grid(row=0, column=i, padx=2, pady=2)
             self._badges.append(b)
 
-        self._pattern_notice = customtkinter.CTkLabel(
-            left, text="Soal ditampilkan di jendela terpisah.",
-            font=(FONT.P, 16, "bold"), text_color=CLR.MUTED,
+        # Design section label + image controls
+        self._pattern_zoom = 1.0
+        design_header = customtkinter.CTkFrame(left, fg_color="transparent")
+        design_header.grid(row=0, column=1, padx=0, pady=(0, 5), sticky="ew")
+        design_header.grid_columnconfigure(0, weight=1)
+        customtkinter.CTkLabel(
+            design_header, text="Block Design",
+            font=(FONT.P, 14, "bold"), text_color=CLR.TEXT, anchor="w",
+        ).grid(row=0, column=0, sticky="w")
+        controls = customtkinter.CTkFrame(design_header, fg_color="transparent")
+        controls.grid(row=0, column=1, sticky="e")
+        customtkinter.CTkButton(
+            controls, text="-", width=32, height=28,
+            font=(FONT.P, 16, "bold"), command=lambda: self._change_pattern_zoom(-0.2),
+        ).pack(side="left", padx=2)
+        self._pattern_zoom_label = customtkinter.CTkLabel(
+            controls, text="100%", width=48,
+            font=(FONT.P, 10, "bold"), text_color=CLR.TEXT,
         )
-        self._pattern_notice.grid(row=1, column=1, padx=20, pady=20, sticky="nsew")
+        self._pattern_zoom_label.pack(side="left", padx=2)
+        customtkinter.CTkButton(
+            controls, text="+", width=32, height=28,
+            font=(FONT.P, 16, "bold"), command=lambda: self._change_pattern_zoom(0.2),
+        ).pack(side="left", padx=2)
+        customtkinter.CTkButton(
+            controls, text="Reset", width=54, height=28,
+            font=(FONT.P, 10), command=self._reset_pattern_zoom,
+        ).pack(side="left", padx=(6, 0))
+
+        self._design_frame = BorderedImageFrame(left, border_width=3)
+        self._design_frame.grid(row=1, column=1, padx=0, pady=0, sticky="nsew")
+        self._design_frame.grid_propagate(False)
+
+        from config import BASE_DIR
+        _init_path = BASE_DIR / "FILES" / "banner_2x2.png"
+        self._frame_w = 480 if DISPLAY_HALF else 700
+        self._frame_h = 480 if DISPLAY_HALF else 700
+        self._design_img_lbl = tk.Canvas(
+            self._design_frame, background=CLR.BG, highlightthickness=0,
+        )
+        self._design_img_lbl.pack(expand=True, fill="both")
+        self._pattern_photo = None
+        self._pattern_render_job = None
+        self._design_frame.bind("<Configure>", self._schedule_pattern_render)
+        self._design_img_lbl.bind("<MouseWheel>", self._on_pattern_mousewheel)
+        self._design_frame.bind("<MouseWheel>", self._on_pattern_mousewheel)
+        self._design_img_lbl.bind("<ButtonPress-1>", self._start_pattern_pan)
+        self._design_img_lbl.bind("<B1-Motion>", self._pan_pattern)
+
+        try:
+            self._pattern_source = Image.open(_init_path).convert("RGB")
+            self._schedule_pattern_render()
+        except Exception:
+            pass
 
         # Results scrollable frame (hidden until test done)
         self._results_frame = customtkinter.CTkScrollableFrame(
@@ -327,137 +377,6 @@ class GameScreen(customtkinter.CTk):
         self._results_frame.grid(row=1, column=1, padx=0, pady=0, sticky="nsew")
         self._results_frame.grid_columnconfigure(0, weight=1)
         self._results_frame.grid_remove()
-
-    def _build_pattern_window(self):
-        self._pattern_zoom = 1.0
-        self._pattern_source: Image.Image | None = None
-        self._pattern_photo = None
-        self._pattern_render_job = None
-
-        self._pattern_window = customtkinter.CTkToplevel(self)
-        self._pattern_window.title("Block Design - Soal")
-        self._pattern_window.geometry("1000x900")
-        self._pattern_window.minsize(420, 480)
-        self._pattern_window.configure(fg_color=CLR.BG)
-        self._pattern_window.grid_rowconfigure(1, weight=1)
-        self._pattern_window.grid_columnconfigure(0, weight=1)
-        self._pattern_window.protocol("WM_DELETE_WINDOW", self._hide_pattern_window)
-
-        toolbar = customtkinter.CTkFrame(self._pattern_window, fg_color=CLR.BG)
-        toolbar.grid(row=0, column=0, sticky="ew", padx=12, pady=10)
-        toolbar.grid_columnconfigure(0, weight=1)
-        customtkinter.CTkLabel(
-            toolbar, text="Block Design", font=(FONT.P, 18, "bold"),
-            text_color=CLR.TEXT,
-        ).grid(row=0, column=0, sticky="w", padx=(4, 16))
-
-        controls = customtkinter.CTkFrame(toolbar, fg_color="transparent")
-        controls.grid(row=0, column=1, sticky="e")
-        customtkinter.CTkButton(
-            controls, text="−", width=38, height=34,
-            font=(FONT.P, 20, "bold"), command=lambda: self._change_pattern_zoom(-0.2),
-        ).pack(side="left", padx=3)
-        self._pattern_zoom_label = customtkinter.CTkLabel(
-            controls, text="100%", width=58, font=(FONT.P, 12, "bold"),
-            text_color=CLR.TEXT,
-        )
-        self._pattern_zoom_label.pack(side="left", padx=2)
-        customtkinter.CTkButton(
-            controls, text="+", width=38, height=34,
-            font=(FONT.P, 20, "bold"), command=lambda: self._change_pattern_zoom(0.2),
-        ).pack(side="left", padx=3)
-        customtkinter.CTkButton(
-            controls, text="Reset", width=58, height=34,
-            font=(FONT.P, 12), command=self._reset_pattern_zoom,
-        ).pack(side="left", padx=(8, 3))
-
-        viewer = customtkinter.CTkFrame(
-            self._pattern_window, fg_color=CLR.BG,
-            border_width=2, border_color=CLR.ACCENT,
-        )
-        viewer.grid(row=1, column=0, sticky="nsew", padx=12, pady=(0, 12))
-        viewer.grid_rowconfigure(0, weight=1)
-        viewer.grid_columnconfigure(0, weight=1)
-        self._pattern_canvas = tk.Canvas(
-            viewer, background=CLR.BG, highlightthickness=0,
-            xscrollincrement=24, yscrollincrement=24,
-        )
-        self._pattern_canvas.grid(row=0, column=0, sticky="nsew")
-        self._pattern_xbar = customtkinter.CTkScrollbar(
-            viewer, orientation="horizontal", command=self._pattern_canvas.xview,
-        )
-        self._pattern_xbar.grid(row=1, column=0, sticky="ew")
-        self._pattern_ybar = customtkinter.CTkScrollbar(
-            viewer, orientation="vertical", command=self._pattern_canvas.yview,
-        )
-        self._pattern_ybar.grid(row=0, column=1, sticky="ns")
-        self._pattern_canvas.configure(
-            xscrollcommand=self._pattern_xbar.set,
-            yscrollcommand=self._pattern_ybar.set,
-        )
-        self._pattern_canvas.bind("<Configure>", self._schedule_pattern_render)
-        self._pattern_canvas.bind("<MouseWheel>", self._on_pattern_mousewheel)
-        self._pattern_canvas.bind("<ButtonPress-1>", self._start_pattern_pan)
-        self._pattern_canvas.bind("<B1-Motion>", self._pan_pattern)
-
-    def _show_pattern_window(self):
-        if not self._pattern_window.winfo_exists():
-            return
-        self._pattern_window.deiconify()
-        self._pattern_window.lift()
-        self._schedule_pattern_render()
-
-    def _hide_pattern_window(self):
-        self._pattern_window.withdraw()
-
-    def _change_pattern_zoom(self, delta: float):
-        self._pattern_zoom = min(3.0, max(0.5, self._pattern_zoom + delta))
-        self._pattern_zoom_label.configure(text=f"{round(self._pattern_zoom * 100)}%")
-        self._render_pattern_image()
-
-    def _reset_pattern_zoom(self):
-        self._pattern_zoom = 1.0
-        self._pattern_zoom_label.configure(text="100%")
-        self._render_pattern_image()
-
-    def _on_pattern_mousewheel(self, event):
-        self._change_pattern_zoom(0.2 if event.delta > 0 else -0.2)
-        return "break"
-
-    def _start_pattern_pan(self, event):
-        self._pattern_canvas.scan_mark(event.x, event.y)
-
-    def _pan_pattern(self, event):
-        self._pattern_canvas.scan_dragto(event.x, event.y, gain=1)
-
-    def _schedule_pattern_render(self, _event=None):
-        if self._pattern_render_job:
-            self.after_cancel(self._pattern_render_job)
-        self._pattern_render_job = self.after(80, self._render_pattern_image)
-
-    def _render_pattern_image(self):
-        self._pattern_render_job = None
-        if self._pattern_source is None or not self._pattern_window.winfo_exists():
-            return
-        canvas = self._pattern_canvas
-        canvas_width, canvas_height = canvas.winfo_width(), canvas.winfo_height()
-        if canvas_width < 2 or canvas_height < 2:
-            return
-
-        source_width, source_height = self._pattern_source.size
-        fit_scale = min((canvas_width - 24) / source_width, (canvas_height - 24) / source_height)
-        scale = max(0.01, fit_scale) * self._pattern_zoom
-        image_width = max(1, round(source_width * scale))
-        image_height = max(1, round(source_height * scale))
-        image = self._pattern_source.resize(
-            (image_width, image_height), Image.Resampling.LANCZOS,
-        )
-        self._pattern_photo = ImageTk.PhotoImage(image)
-        canvas.delete("all")
-        x = max(0, (canvas_width - image_width) // 2)
-        y = max(0, (canvas_height - image_height) // 2)
-        canvas.create_image(x, y, anchor="nw", image=self._pattern_photo)
-        canvas.configure(scrollregion=(0, 0, max(canvas_width, x + image_width), max(canvas_height, y + image_height)))
 
     def _build_camera_panel(self):
         px = 10 if DISPLAY_HALF else 20
@@ -475,6 +394,59 @@ class GameScreen(customtkinter.CTk):
         self._cam_label = customtkinter.CTkLabel(self._cam_frame, text="", anchor="center")
         self._cam_label.grid(row=0, column=0, sticky="nsew")
 
+    def _change_pattern_zoom(self, delta: float):
+        self._pattern_zoom = min(2.5, max(0.5, self._pattern_zoom + delta))
+        self._pattern_zoom_label.configure(text=f"{round(self._pattern_zoom * 100)}%")
+        self._schedule_pattern_render()
+
+    def _reset_pattern_zoom(self):
+        self._pattern_zoom = 1.0
+        self._pattern_zoom_label.configure(text="100%")
+        self._schedule_pattern_render()
+
+    def _on_pattern_mousewheel(self, event):
+        self._change_pattern_zoom(0.1 if event.delta > 0 else -0.1)
+        return "break"
+
+    def _start_pattern_pan(self, event):
+        self._design_img_lbl.scan_mark(event.x, event.y)
+
+    def _pan_pattern(self, event):
+        self._design_img_lbl.scan_dragto(event.x, event.y, gain=1)
+
+    def _schedule_pattern_render(self, _event=None):
+        if self._pattern_render_job:
+            self.after_cancel(self._pattern_render_job)
+        self._pattern_render_job = self.after(40, self._render_pattern_image)
+
+    def _render_pattern_image(self):
+        self._pattern_render_job = None
+        source = getattr(self, "_pattern_source", None)
+        if source is None:
+            return
+        panel_width = self._design_frame.winfo_width() - 12
+        panel_height = self._design_frame.winfo_height() - 12
+        if panel_width < 2 or panel_height < 2:
+            return
+        source_width, source_height = source.size
+        fit_scale = min(panel_width / source_width, panel_height / source_height)
+        scale = max(0.01, fit_scale * self._pattern_zoom)
+        width = max(1, round(source_width * scale))
+        height = max(1, round(source_height * scale))
+        image = source.resize((width, height), Image.Resampling.LANCZOS)
+        self._pattern_photo = ImageTk.PhotoImage(image)
+        canvas = self._design_img_lbl
+        canvas.configure(background=CLR.BG)
+        canvas.delete("all")
+        canvas_width = canvas.winfo_width()
+        canvas_height = canvas.winfo_height()
+        x = (canvas_width - width) // 2
+        y = (canvas_height - height) // 2
+        canvas.create_image(x, y, anchor="nw", image=self._pattern_photo)
+        canvas.configure(
+            scrollregion=(0, 0, max(canvas_width, width), max(canvas_height, height)),
+        )
+
     # ── Image preload ─────────────────────────────────────────────────────────
 
     def _preload_images(self):
@@ -488,21 +460,15 @@ class GameScreen(customtkinter.CTk):
             except Exception as e:
                 print(f">>> [GameScreen] Preload failed {variant}: {e}")
         print(f">>> [GameScreen] Cached {len(self._cached_images)} images")
-        from config import BASE_DIR
-        try:
-            self._pattern_source = Image.open(
-                BASE_DIR / "FILES" / "TEST_1000x1000" / "0Bx.jpg"
-            ).convert("RGB")
-            self._schedule_pattern_render()
-        except Exception:
-            pass
 
     def _load_level_image(self, variant: str):
         img = self._cached_images.get(variant)
         if img is None:
             return
         self._pattern_source = img
-        self._render_pattern_image()
+        self._pattern_zoom = 1.0
+        self._pattern_zoom_label.configure(text="100%")
+        self._schedule_pattern_render()
 
         if BUTTON_MODE:
             self._image_visible   = True
@@ -722,11 +688,10 @@ class GameScreen(customtkinter.CTk):
         print(f">>> Level {lvl} SURRENDERED")
         threading.Thread(target=lambda: play_sfx("skip"), daemon=True).start()
 
-        elapsed = round(time.time() - self.start_time, 2)
-        self.timer_task_all.append(elapsed)
+        self.timer_task_all.append(0.0)
         self._task_flags[lvl] = False
         self._update_badge(lvl, state="completed")
-        _fire_event("level_complete", level=lvl, time_sec=elapsed)
+        _fire_event("level_complete", level=lvl, time_sec=0.0)
 
         self.current_question = lvl + 1
         if self.current_question <= self.max_level:
@@ -829,17 +794,9 @@ class GameScreen(customtkinter.CTk):
         self._duel_result_lbl  = None
         self._winlose_lbl      = None
 
-        self._pattern_notice.grid_remove()
+        self._design_frame.grid_remove()
         self._results_frame.grid()
         self._exit_btn.place(relx=1.0, rely=0.0, anchor="ne", x=-12, y=8)
-
-        self._pattern_btn = customtkinter.CTkButton(
-            self, text="Tampilkan Soal", width=110, height=36,
-            font=(FONT.P, 12, "bold"), fg_color=CLR.CARD,
-            hover_color=CLR.SUBTLE_BORDER, text_color=CLR.TEXT,
-            corner_radius=RADIUS.DEFAULT, command=self._show_pattern_window,
-        )
-        self._pattern_btn.place(relx=1.0, rely=0.0, anchor="ne", x=-124, y=8)
 
         for w in self._results_frame.winfo_children():
             w.destroy()
@@ -864,7 +821,7 @@ class GameScreen(customtkinter.CTk):
         trophy.grid_columnconfigure(0, weight=1)
 
         customtkinter.CTkLabel(trophy, text=stars, font=(FONT.P, 28), text_color=CLR.GOLD).grid(row=0, column=0, pady=(16, 2))
-        customtkinter.CTkLabel(trophy, text=f"{total_time:.1f}s", font=(FONT.P, 52, "bold"), text_color=CLR.GOLD).grid(row=1, column=0, pady=(0, 2))
+        customtkinter.CTkLabel(trophy, text=format_seconds(total_time), font=(FONT.P, 52, "bold"), text_color=CLR.GOLD).grid(row=1, column=0, pady=(0, 2))
         customtkinter.CTkLabel(trophy, text=star_lbl, font=(FONT.P, 20, "bold"), text_color=CLR.SUCCESS).grid(row=2, column=0, pady=(0, 2))
         customtkinter.CTkLabel(trophy, text="Total Waktu", font=(FONT.P, 13), text_color=CLR.MUTED).grid(row=3, column=0, pady=(0, 16))
 
@@ -892,7 +849,7 @@ class GameScreen(customtkinter.CTk):
         if is_duel:
             stats.grid_columnconfigure((0, 1), weight=1)
             StatCard(stats, "Usia", f"{age_real} th").grid(row=0, column=0, padx=(0, 8), sticky="ew")
-            StatCard(stats, "Total Waktu", f"{total_time:.1f}s").grid(row=0, column=1, padx=(8, 0), sticky="ew")
+            StatCard(stats, "Total Waktu", format_seconds(total_time)).grid(row=0, column=1, padx=(8, 0), sticky="ew")
         else:
             stats.grid_columnconfigure((0, 1, 2), weight=1)
             StatCard(stats, "Usia",          f"{age_real} th").grid(row=0, column=0, padx=(0, 4), sticky="ew")
@@ -1012,9 +969,12 @@ class GameScreen(customtkinter.CTk):
 
     def _copy_results(self, total_time, age_real):
         lvl = sum(1 for t in self.timer_task_all if t > 0)
-        text = f"BDT | Total: {total_time:.1f}s | Usia: {age_real} | Level: {lvl}/{MAX_LEVEL}"
+        text = f"BDT | Total: {format_seconds(total_time)} | Usia: {age_real} | Level: {lvl}/{MAX_LEVEL}"
         if self.timer_task_all:
-            text += " | " + " ".join(f"L{i+1}:{t:.1f}s" for i, t in enumerate(self.timer_task_all))
+            text += " | " + " ".join(
+                f"L{i + 1}:{format_seconds(t)}"
+                for i, t in enumerate(self.timer_task_all)
+            )
         self.clipboard_clear()
         self.clipboard_append(text)
 
@@ -1048,8 +1008,8 @@ class GameScreen(customtkinter.CTk):
             return
         if self._image_visible and self._image_show_time:
             if time.time() - self._image_show_time >= self._img_display_dur:
-                self._pattern_source = Image.new("RGB", (1000, 1000), "gray")
-                self._render_pattern_image()
+                self._design_img_lbl.delete("all")
+                self._design_img_lbl.configure(background="gray")
                 self._image_visible   = False
                 self._image_show_time = None
 
@@ -1291,13 +1251,7 @@ class GameScreen(customtkinter.CTk):
 def _launch_game(model, face_assets):
     app = GameScreen(model, face_assets)
     app.bind("<Return>", app.skip_current_level)
-    try:
-        if sys.platform == "linux":
-            app.attributes("-zoomed", True)
-        else:
-            app.state("zoomed")
-    except Exception:
-        pass
+    maximize_window(app)
     app.mainloop()
 
 
@@ -1305,13 +1259,7 @@ def _relaunch_from_input(model, face_assets):
     from ui.input_screen import InputScreen
     inp = InputScreen(model=model, face_assets=face_assets)
     inp.after(200, inp.start_camera_preview)
-    try:
-        if sys.platform == "linux":
-            inp.attributes("-zoomed", True)
-        else:
-            inp.state("zoomed")
-    except Exception:
-        pass
+    maximize_window(inp)
     inp.mainloop()
     if not STATE.nick_name:
         return
