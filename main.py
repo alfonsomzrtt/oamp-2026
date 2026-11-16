@@ -10,7 +10,6 @@ Urutan inisialisasi:
 6. UI flow: InputScreen → [RoomScreen] → GameScreen
 """
 
-import sys
 import traceback
 
 import cv2
@@ -112,10 +111,6 @@ if __name__ == "__main__":
         from ui.input_screen import InputScreen
         inp = InputScreen(model=model, face_assets=face_assets)
         inp.after(200, inp.start_camera_preview)
-        inp.after(100, lambda: (
-            inp.attributes("-zoomed", True) if sys.platform == "linux"
-            else inp.state("zoomed")
-        ))
         inp.mainloop()
 
         # User tutup window tanpa selesai input
@@ -141,4 +136,3 @@ if __name__ == "__main__":
     except Exception:
         traceback.print_exc()
         raise SystemExit(1)
-

@@ -6,11 +6,28 @@ Import:
 """
 
 from __future__ import annotations
+import sys
+import tkinter as tk
+
 from config import THEME
 from pathlib import Path
 
 
 # ── CTk global theme ─────────────────────────────────────────────────────────
+
+def maximize_window(window) -> None:
+    """Maximize a top-level window after its widgets have been laid out."""
+    def _apply() -> None:
+        try:
+            if sys.platform == "linux":
+                window.attributes("-zoomed", True)
+            else:
+                window.state("zoomed")
+        except tk.TclError as exc:
+            print(f">>> [Window] Failed to maximize window: {exc}")
+
+    window.after_idle(_apply)
+
 
 def apply_ctk_theme():
     """Harus dipanggil sebelum widget CTk apapun dibuat."""

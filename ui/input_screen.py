@@ -20,7 +20,7 @@ from config import (
     SLIDER_BOUNDS, remap_slider, MAX_LEVEL,
 )
 from state import STATE
-from ui.theme import CLR, FONT, RADIUS
+from ui.theme import CLR, FONT, RADIUS, maximize_window
 from ui.widgets import UIDEntryFrame
 from core.camera import (
     open_camera, release_camera, read_frame,
@@ -76,6 +76,7 @@ class InputScreen(customtkinter.CTk):
         self._build_content()
         self._init_qr()
         self._update_mode_buttons()
+        maximize_window(self)
 
     # ── Title bar ─────────────────────────────────────────────────────────────
 

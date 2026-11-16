@@ -10,7 +10,6 @@ Thread model:
 
 from __future__ import annotations
 import queue
-import sys
 import threading
 import time
 from typing import Any
@@ -22,7 +21,7 @@ from PIL import Image, ImageTk
 
 from config import DISPLAY_HALF, HIDE_CAMERA, BUTTON_MODE, MAX_LEVEL, LEVEL_ANSWERS, get_variant
 from state import STATE
-from ui.theme import CLR, FONT, RADIUS
+from ui.theme import CLR, FONT, RADIUS, maximize_window
 from ui.widgets import SectionLabel, BorderedImageFrame, StatCard, LevelTimeRow
 from core.camera import CameraThread, open_camera
 from core.detection import DetectionThread, DetectionResult
@@ -124,6 +123,7 @@ class GameScreen(customtkinter.CTk):
 
         self._build_ui()
         self._preload_images()
+        maximize_window(self)
 
         if BUTTON_MODE:
             self._serial_thread = SerialReaderThread()
@@ -1173,13 +1173,6 @@ class GameScreen(customtkinter.CTk):
 def _launch_game(model, face_assets):
     app = GameScreen(model, face_assets)
     app.bind("<Return>", app.skip_current_level)
-    try:
-        if sys.platform == "linux":
-            app.attributes("-zoomed", True)
-        else:
-            app.state("zoomed")
-    except Exception:
-        pass
     app.mainloop()
 
 
@@ -1187,13 +1180,6 @@ def _relaunch_from_input(model, face_assets):
     from ui.input_screen import InputScreen
     inp = InputScreen(model=model, face_assets=face_assets)
     inp.after(200, inp.start_camera_preview)
-    try:
-        if sys.platform == "linux":
-            inp.attributes("-zoomed", True)
-        else:
-            inp.state("zoomed")
-    except Exception:
-        pass
     inp.mainloop()
     if not STATE.nick_name:
         return

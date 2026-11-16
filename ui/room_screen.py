@@ -15,7 +15,7 @@ import customtkinter
 
 from config import API_SERVER_URL
 from state import STATE
-from ui.theme import CLR, FONT, RADIUS
+from ui.theme import CLR, FONT, RADIUS, maximize_window
 from api.websocket_client import GameWebSocket
 from core.game_logic import log_exception
 
@@ -27,7 +27,7 @@ class RoomScreen(customtkinter.CTk):
         self.title("BDT — Multiplayer Lobby")
         self.geometry("620x600")
         self.configure(fg_color=CLR.BG)
-        self.resizable(0, 0)
+        self.resizable(True, True)
         self._center()
 
         self.room_ready  = False
@@ -39,6 +39,7 @@ class RoomScreen(customtkinter.CTk):
         self.protocol("WM_DELETE_WINDOW", self._on_close)
         self._build_ui()
         self._refresh_rooms()
+        maximize_window(self)
 
     # ── Init ──────────────────────────────────────────────────────────────────
 
