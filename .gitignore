@@ -19,6 +19,7 @@ run_oamp.sh
 tesmodel.py
 generate_bgm_preview.py
 MODEL/onnx/
+regen_audio_check.py
 
 ### CircuitPython ###
 .Trashes

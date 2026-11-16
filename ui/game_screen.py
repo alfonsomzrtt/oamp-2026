@@ -22,14 +22,9 @@ from PIL import Image, ImageTk
 
 from config import DISPLAY_HALF, HIDE_CAMERA, BUTTON_MODE, MAX_LEVEL, LEVEL_ANSWERS, get_variant
 from state import STATE
-<<<<<<< HEAD
-from ui.theme import CLR, FONT, RADIUS, maximize_window
-from ui.widgets import SectionLabel, BorderedImageFrame, StatCard, LevelTimeRow
-=======
 from ui.theme import CLR, FONT, RADIUS
 from ui.window_utils import maximize_window
 from ui.widgets import SectionLabel, BorderedImageFrame, StatCard, LevelTimeRow, format_seconds
->>>>>>> cbdb46da571552d1336e681704f6f9ff149ef786
 from core.camera import CameraThread, open_camera
 from core.detection import DetectionThread, DetectionResult
 from core.audio import AUDIO_DIR, play_sfx, sfx_for_time, play_utterance_pair
@@ -1256,10 +1251,7 @@ class GameScreen(customtkinter.CTk):
 def _launch_game(model, face_assets):
     app = GameScreen(model, face_assets)
     app.bind("<Return>", app.skip_current_level)
-<<<<<<< HEAD
-=======
     maximize_window(app)
->>>>>>> cbdb46da571552d1336e681704f6f9ff149ef786
     app.mainloop()
 
 
@@ -1267,10 +1259,7 @@ def _relaunch_from_input(model, face_assets):
     from ui.input_screen import InputScreen
     inp = InputScreen(model=model, face_assets=face_assets)
     inp.after(200, inp.start_camera_preview)
-<<<<<<< HEAD
-=======
     maximize_window(inp)
->>>>>>> cbdb46da571552d1336e681704f6f9ff149ef786
     inp.mainloop()
     if not STATE.nick_name:
         return
