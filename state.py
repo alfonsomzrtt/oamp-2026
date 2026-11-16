@@ -6,7 +6,11 @@ sebagai satu AppState instance (singleton: STATE).
 
 Cara pakai:
     from state import STATE
+<<<<<<< HEAD
     STATE.nick_name = "Al Faris"
+=======
+    STATE.nick_name = "Alfonso"
+>>>>>>> rewrite-pr
     STATE.is_multiplayer = True
 """
 

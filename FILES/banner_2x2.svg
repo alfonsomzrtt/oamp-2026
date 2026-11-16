@@ -1,0 +1,27 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1000" height="1000" viewBox="0 0 1000 1000">
+  <rect width="1000" height="1000" fill="#ffffff"/>
+  <text x="500" y="115" text-anchor="middle" font-family="Arial, sans-serif" font-size="54" font-weight="700" fill="#111111">OTAK-ATIK MERAH PUTIH</text>
+  <text x="500" y="175" text-anchor="middle" font-family="Arial, sans-serif" font-size="30" fill="#333333">Susun 4 balok menjadi pola 2 x 2</text>
+
+  <text x="245" y="285" text-anchor="middle" font-family="Arial, sans-serif" font-size="30" font-weight="700" fill="#333333">4 BALOK</text>
+  <g stroke="#202020" stroke-width="6">
+    <rect x="125" y="330" width="105" height="105" fill="#f04444"/>
+    <rect x="230" y="330" width="105" height="105" fill="#ffffff"/>
+    <rect x="125" y="435" width="105" height="105" fill="#ffffff"/>
+    <rect x="230" y="435" width="105" height="105" fill="#f04444"/>
+  </g>
+
+  <path d="M405 435 H570" stroke="#e94b4b" stroke-width="20" stroke-linecap="round"/>
+  <path d="M535 390 L600 435 L535 480" fill="none" stroke="#e94b4b" stroke-width="20" stroke-linecap="round" stroke-linejoin="round"/>
+
+  <text x="760" y="285" text-anchor="middle" font-family="Arial, sans-serif" font-size="30" font-weight="700" fill="#333333">POLA 2 x 2</text>
+  <g stroke="#202020" stroke-width="6">
+    <rect x="625" y="330" width="135" height="135" fill="#f04444"/>
+    <rect x="760" y="330" width="135" height="135" fill="#ffffff"/>
+    <rect x="625" y="465" width="135" height="135" fill="#ffffff"/>
+    <rect x="760" y="465" width="135" height="135" fill="#f04444"/>
+  </g>
+
+  <rect x="150" y="735" width="700" height="90" rx="18" fill="#f5f5f5" stroke="#dddddd" stroke-width="4"/>
+  <text x="500" y="790" text-anchor="middle" font-family="Arial, sans-serif" font-size="30" fill="#222222">Tekan tombol jika sudah siap</text>
+</svg>

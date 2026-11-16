@@ -11,13 +11,14 @@ Urutan inisialisasi:
 """
 
 import traceback
-
+import sys
 import cv2
 
 from config import BASE_DIR, USE_BANTAL_MODEL
 from state import STATE
 from core.game_logic import install_excepthooks, check_consent, mark_consent_accepted
 from ui.theme import apply_ctk_theme
+from ui.window_utils import maximize_window
 
 
 # ── Exception hooks (sebelum apapun) ─────────────────────────────────────────
@@ -111,6 +112,7 @@ if __name__ == "__main__":
         from ui.input_screen import InputScreen
         inp = InputScreen(model=model, face_assets=face_assets)
         inp.after(200, inp.start_camera_preview)
+        maximize_window(inp)
         inp.mainloop()
 
         # User tutup window tanpa selesai input
