@@ -18,8 +18,18 @@ from config import ERROR_LOG_PATH, CONSENT_FILE, CONSENT_VERSION
 
 # ── Cognitive age estimation ──────────────────────────────────────────────────
 
+# Time-to-age lookup table (detik → estimasi usia kognitif)
+_TIME_POINTS = np.array([ 9, 10, 11, 12, 14, 16, 18, 20, 25, 30, 35, 40, 45, 50], dtype=float)
+_AGE_POINTS  = np.array([20, 25, 30, 35, 40, 45, 50, 55, 60, 65, 70, 75, 80, 85], dtype=float)
 
 
+def estimate_cognitive_age(time_finish_sec: float) -> int:
+    """
+    Estimasi usia kognitif berdasarkan waktu penyelesaian satu task (detik).
+    Clamp ke range [20, 90].
+    """
+    age = int(np.interp(time_finish_sec, _TIME_POINTS, _AGE_POINTS))
+    return max(20, min(90, age))
 
 
 def compute_visuo_spatial(age_real: int, age_cognitive: int) -> int:
