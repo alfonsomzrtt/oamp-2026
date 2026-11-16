@@ -19,10 +19,7 @@ from config import BASE_DIR, USE_BANTAL_MODEL
 from state import STATE
 from core.game_logic import install_excepthooks, check_consent, mark_consent_accepted
 from ui.theme import apply_ctk_theme
-<<<<<<< HEAD
-=======
 from ui.window_utils import maximize_window
->>>>>>> rewrite-pr
 
 
 # ── Exception hooks (sebelum apapun) ─────────────────────────────────────────
