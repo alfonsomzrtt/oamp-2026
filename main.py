@@ -19,6 +19,10 @@ from config import BASE_DIR, USE_BANTAL_MODEL
 from state import STATE
 from core.game_logic import install_excepthooks, check_consent, mark_consent_accepted
 from ui.theme import apply_ctk_theme
+<<<<<<< HEAD
+=======
+from ui.window_utils import maximize_window
+>>>>>>> rewrite-pr
 
 
 # ── Exception hooks (sebelum apapun) ─────────────────────────────────────────
@@ -112,10 +116,14 @@ if __name__ == "__main__":
         from ui.input_screen import InputScreen
         inp = InputScreen(model=model, face_assets=face_assets)
         inp.after(200, inp.start_camera_preview)
+<<<<<<< HEAD
         inp.after(100, lambda: (
             inp.attributes("-zoomed", True) if sys.platform == "linux"
             else inp.state("zoomed")
         ))
+=======
+        maximize_window(inp)
+>>>>>>> rewrite-pr
         inp.mainloop()
 
         # User tutup window tanpa selesai input
