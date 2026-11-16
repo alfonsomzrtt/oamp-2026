@@ -73,6 +73,28 @@ def _fire_event(event_type: str, level: int = 0, time_sec: float = 0.0):
                      "game_score": level, "blocks_hit": int(time_sec)})
 
 
+def build_session_insights(times: list[float]) -> dict[str, float | int]:
+    """Build the descriptive metrics shared by the UI and local JSON payload."""
+    valid_times = [time_sec for time_sec in times if time_sec > 0]
+    fastest_level = slowest_level = 0
+    fastest_time = slowest_time = 0.0
+    if valid_times:
+        fastest_time = min(valid_times)
+        slowest_time = max(valid_times)
+        fastest_level = times.index(fastest_time) + 1
+        slowest_level = times.index(slowest_time) + 1
+
+    return {
+        "total_time": float(sum(times)),
+        "average_time": float(sum(valid_times) / len(valid_times)) if valid_times else 0.0,
+        "completed_levels": sum(time_sec > 0 for time_sec in times),
+        "fastest_level": fastest_level,
+        "fastest_time": fastest_time,
+        "slowest_level": slowest_level,
+        "slowest_time": slowest_time,
+    }
+
+
 class GameScreen(customtkinter.CTk):
 
     def __init__(self, model: Any, face_assets: tuple):
@@ -738,7 +760,7 @@ class GameScreen(customtkinter.CTk):
     def _finish_test(self, total_time, age_real, age_cog, visuo_spatial):
         uid    = STATE.current_participant_uid
         times  = self.timer_task_all
-        avg    = float(sum(times) / len(times)) if times else 0.0
+        insights = build_session_insights(times)
 
         payload = {
             "uid":           uid,
@@ -748,7 +770,8 @@ class GameScreen(customtkinter.CTk):
             "age":           age_real,
             **{f"task{i+1:02d}": float(times[i]) if i < len(times) else 0.0
                for i in range(8)},
-            "task_avg":      avg,
+            "task_avg":      insights["average_time"],
+            "session_insights": insights,
             "cognitive_age": age_cog,
             "visuo_spatial": visuo_spatial,
             "cog_age_list":  list(self.cognitive_age_list),
@@ -759,8 +782,10 @@ class GameScreen(customtkinter.CTk):
         result_thread = None
         if uid:
             result_thread = submit_results(uid, payload)
+            self._results_save_message = "Data sesi dikirim ke layanan"
         else:
             save_training_locally(payload)
+            self._results_save_message = "Data sesi tersimpan lokal"
 
         score = float(sum(times))
 
@@ -803,7 +828,8 @@ class GameScreen(customtkinter.CTk):
 
         # Header
         customtkinter.CTkLabel(
-            self._results_frame, text="TES SELESAI",
+            self._results_frame,
+            text=f"TES SELESAI\n{getattr(self, '_results_save_message', '')}",
             font=(FONT.P, 26, "bold"), text_color=CLR.TEXT,
         ).grid(row=0, column=0, pady=(20, 6))
 
@@ -843,18 +869,26 @@ class GameScreen(customtkinter.CTk):
             )
             self._winlose_lbl.grid(row=0, column=0, pady=18)
 
-        # Stats
+        # Descriptive session insights; these do not claim a clinical score.
         stats = customtkinter.CTkFrame(self._results_frame, fg_color="transparent")
         stats.grid(row=4, column=0, sticky="ew", padx=20, pady=(0, 12))
-        if is_duel:
-            stats.grid_columnconfigure((0, 1), weight=1)
-            StatCard(stats, "Usia", f"{age_real} th").grid(row=0, column=0, padx=(0, 8), sticky="ew")
-            StatCard(stats, "Total Waktu", f"{total_time:.1f}s").grid(row=0, column=1, padx=(8, 0), sticky="ew")
-        else:
-            stats.grid_columnconfigure((0, 1, 2), weight=1)
-            StatCard(stats, "Usia",          f"{age_real} th").grid(row=0, column=0, padx=(0, 4), sticky="ew")
-            StatCard(stats, "Usia Kognitif", f"{age_cog} th").grid(row=0, column=1, padx=4,       sticky="ew")
-            StatCard(stats, "Visual-Spasial",f"{visuo_spatial}%").grid(row=0, column=2, padx=(4, 0), sticky="ew")
+        stats.grid_columnconfigure((0, 1, 2, 3), weight=1)
+        insights = build_session_insights(self.timer_task_all)
+        average_time = insights["average_time"]
+        fastest_level = insights["fastest_level"]
+        fastest_time = insights["fastest_time"]
+        slowest_level = insights["slowest_level"]
+        slowest_time = insights["slowest_time"]
+        insights = (
+            ("Rata-rata/Level", f"{average_time:.1f}s"),
+            ("Tercepat", f"L{fastest_level} · {fastest_time:.1f}s" if fastest_level else "-") ,
+            ("Terlama", f"L{slowest_level} · {slowest_time:.1f}s" if slowest_level else "-") ,
+            ("Rentang Waktu", f"{fastest_time:.1f}-{slowest_time:.1f}s" if fastest_level else "-"),
+        )
+        for column, (title, value) in enumerate(insights):
+            StatCard(stats, title, value).grid(
+                row=0, column=column, padx=4, sticky="ew",
+            )
 
         # Duel result (multiplayer)
         if STATE.is_multiplayer and STATE.current_room_code and not STATE.tournament_mode:
@@ -863,13 +897,18 @@ class GameScreen(customtkinter.CTk):
         # Per-level times
         if self.timer_task_all:
             customtkinter.CTkLabel(
-                self._results_frame, text="Waktu per Level",
+                self._results_frame, text="Waktu per Pola",
                 font=(FONT.P, 14, "bold"), text_color=CLR.TEXT,
             ).grid(row=5, column=0, pady=(16, 6), sticky="w", padx=20)
+            customtkinter.CTkLabel(
+                self._results_frame,
+                text="L1 = Pola 1  ·  L2 = Pola 2  ·  L3 = Pola 3  ·  dan seterusnya",
+                font=(FONT.P, 10), text_color=CLR.MUTED,
+            ).grid(row=6, column=0, pady=(0, 6), sticky="w", padx=20)
 
             for i, t in enumerate(self.timer_task_all):
                 LevelTimeRow(self._results_frame, i + 1, t).grid(
-                    row=6 + i, column=0, sticky="ew", padx=20, pady=2,
+                    row=7 + i, column=0, sticky="ew", padx=20, pady=2,
                 )
 
         # Action bar
@@ -887,7 +926,7 @@ class GameScreen(customtkinter.CTk):
                 font=(FONT.P, 14, "bold"),
                 fg_color=CLR.CARD, hover_color=CLR.SUBTLE_BORDER,
                 text_color=CLR.TEXT, corner_radius=RADIUS.DEFAULT, height=52,
-                command=lambda: self._copy_results(total_time, age_real),
+                command=lambda: self._copy_results(total_time),
             ).grid(row=0, column=1, padx=4, pady=10, sticky="ew")
             customtkinter.CTkButton(
                 self._results_bar, text="✕ Kembali ke Beranda",
@@ -967,9 +1006,9 @@ class GameScreen(customtkinter.CTk):
         if self._winlose_lbl and self._winlose_lbl.winfo_exists():
             self._winlose_lbl.configure(text=txt, text_color=color)
 
-    def _copy_results(self, total_time, age_real):
+    def _copy_results(self, total_time):
         lvl = sum(1 for t in self.timer_task_all if t > 0)
-        text = f"BDT | Total: {total_time:.1f}s | Usia: {age_real} | Level: {lvl}/{MAX_LEVEL}"
+        text = f"BDT | Total: {total_time:.1f}s | Level: {lvl}/{MAX_LEVEL}"
         if self.timer_task_all:
             text += " | " + " ".join(
                 f"L{i + 1}:{t:.1f}s"

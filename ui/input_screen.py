@@ -113,6 +113,7 @@ class InputScreen(customtkinter.CTk):
             command=lambda: self._on_mode_change("competition"),
             font=(FONT.P, 11, "bold"),
             corner_radius=RADIUS.SMALL, height=32, width=80,
+            state="disabled",
         )
         self._btn_competition.pack(side="left", padx=(0, 10))
 
@@ -138,6 +139,8 @@ class InputScreen(customtkinter.CTk):
 
         px = 20
         self._build_uid_section(content, px)
+        self._uid_card.grid_remove()
+        self._build_local_participant_section(content, px)
         self._build_camera_section(content, px)
         self._build_action_buttons(content, px)
 
@@ -146,6 +149,7 @@ class InputScreen(customtkinter.CTk):
             parent, fg_color=CLR.CARD, corner_radius=RADIUS.DEFAULT,
             border_width=1, border_color=CLR.SUBTLE_BORDER,
         )
+        self._uid_card = card
         card.grid(row=0, column=0, sticky="ew", padx=px, pady=(16, 10))
 
         top = customtkinter.CTkFrame(card, fg_color="transparent")
@@ -200,6 +204,52 @@ class InputScreen(customtkinter.CTk):
             height=24, width=56, corner_radius=RADIUS.SMALL,
         )
         self._reset_btn.grid(row=0, column=1, sticky="e")
+
+    def _build_local_participant_section(self, parent, px):
+        card = customtkinter.CTkFrame(
+            parent, fg_color=CLR.CARD, corner_radius=RADIUS.DEFAULT,
+            border_width=1, border_color=CLR.SUBTLE_BORDER,
+        )
+        card.grid(row=0, column=0, sticky="ew", padx=px, pady=(16, 10))
+        card.grid_columnconfigure(1, weight=1)
+
+        customtkinter.CTkLabel(
+            card, text="DATA PESERTA",
+            font=(FONT.P, 13, "bold"), text_color=CLR.ACCENT,
+        ).grid(row=0, column=0, columnspan=3, padx=14, pady=(12, 8), sticky="w")
+
+        customtkinter.CTkLabel(
+            card, text="Nama", font=(FONT.P, 12, "bold"), text_color=CLR.TEXT,
+        ).grid(row=1, column=0, padx=(14, 8), pady=5, sticky="w")
+        self._name_entry = customtkinter.CTkEntry(
+            card, placeholder_text="Nama peserta", height=38,
+            font=(FONT.P, 13), border_width=1,
+        )
+        self._name_entry.grid(row=1, column=1, columnspan=2, padx=(0, 14), pady=5, sticky="ew")
+        self._name_entry.bind("<Return>", lambda _event: self._on_start())
+
+        customtkinter.CTkLabel(
+            card, text="Usia", font=(FONT.P, 12, "bold"), text_color=CLR.TEXT,
+        ).grid(row=2, column=0, padx=(14, 8), pady=(5, 12), sticky="w")
+        self._age_entry = customtkinter.CTkEntry(
+            card, placeholder_text="Tahun", height=38, width=100,
+            font=(FONT.P, 13), border_width=1,
+        )
+        self._age_entry.grid(row=2, column=1, padx=(0, 8), pady=(5, 12), sticky="w")
+        self._age_entry.bind("<Return>", lambda _event: self._on_start())
+
+        self._gender_entry = customtkinter.CTkComboBox(
+            card,
+            values=["Pilih jenis kelamin", "Laki-laki", "Perempuan", "Lainnya/Tidak menjawab"],
+            height=38, font=(FONT.P, 12), state="readonly",
+        )
+        self._gender_entry.set("Pilih jenis kelamin")
+        self._gender_entry.grid(row=2, column=2, padx=(0, 14), pady=(5, 12), sticky="ew")
+
+        customtkinter.CTkLabel(
+            card, text="Data disimpan lokal setelah tes selesai.",
+            font=(FONT.P, 10), text_color=CLR.MUTED,
+        ).grid(row=3, column=0, columnspan=3, padx=14, pady=(0, 10), sticky="w")
 
     def _build_camera_section(self, parent, px):
         cam_card = customtkinter.CTkFrame(
@@ -817,18 +867,22 @@ class InputScreen(customtkinter.CTk):
 
     def _on_start(self):
         import tkinter.messagebox as messagebox
-        uid = self._uid_entry.get()
+        name = self._name_entry.get().strip()
+        age_text = self._age_entry.get().strip()
+        gender = self._gender_entry.get().strip()
         try:
-            if not uid:
-                if self._uid_required:
-                    raise ValueError("UID tidak boleh kosong — tekan 'Cek UID' dulu")
-                STATE.nick_name = "training_user"
-                STATE.current_participant_uid = ""
-            elif not STATE.current_participant_uid:
-                if self._uid_required:
-                    raise ValueError("UID belum diverifikasi — tekan 'Cek UID' dulu")
-                STATE.nick_name = "training_user"
-                STATE.current_participant_uid = ""
+            if not name:
+                raise ValueError("Nama peserta wajib diisi")
+            age = int(age_text)
+            if not 3 <= age <= 120:
+                raise ValueError("Usia harus berada antara 3 dan 120 tahun")
+            if gender == "Pilih jenis kelamin":
+                raise ValueError("Pilih jenis kelamin terlebih dahulu")
+
+            STATE.nick_name = name
+            STATE.age_range_code = age
+            STATE.gender_code = gender
+            STATE.current_participant_uid = ""
             self.destroy()
         except ValueError as e:
             messagebox.showerror("Input Error", str(e))
@@ -847,7 +901,7 @@ class InputScreen(customtkinter.CTk):
         new = "light" if THEME == "dark" else "dark"
         set_theme(new)
         import tkinter.messagebox as mb
-        mb.showinfo("Tema Diubah", "Restart aplikasi untuk menerapkan tema baru.")
+        mb.showinfo("Tema Diubah", "Restart aplikasi untuk menerapkan tema baru.")  
 
     # ── Lifecycle ─────────────────────────────────────────────────────────────
 

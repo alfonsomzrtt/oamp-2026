@@ -1,0 +1,48 @@
+{
+  "uid": "",
+  "mode": "training",
+  "nick_name": "sawit",
+  "gender": "Laki-laki",
+  "age": 21,
+  "task01": 22.83,
+  "task02": 3.5,
+  "task03": 5.61,
+  "task04": 5.02,
+  "task05": 5.21,
+  "task06": 9.06,
+  "task07": 5.75,
+  "task08": 8.77,
+  "task_avg": 8.21875,
+  "session_insights": {
+    "total_time": 65.75,
+    "average_time": 8.21875,
+    "completed_levels": 8,
+    "fastest_level": 2,
+    "fastest_time": 3.5,
+    "slowest_level": 1,
+    "slowest_time": 22.83
+  },
+  "cognitive_age": 24,
+  "visuo_spatial": 97,
+  "cog_age_list": [
+    57,
+    20,
+    20,
+    20,
+    20,
+    20,
+    20,
+    20
+  ],
+  "variant_list": [
+    "1d",
+    "2d",
+    "3d",
+    "4b",
+    "5d",
+    "6d",
+    "7c",
+    "8c"
+  ],
+  "client_ts": 1794829762
+}
