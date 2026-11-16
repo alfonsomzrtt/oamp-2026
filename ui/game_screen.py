@@ -10,7 +10,6 @@ Thread model:
 
 from __future__ import annotations
 import queue
-import sys
 import threading
 import time
 import tkinter as tk
@@ -148,6 +147,7 @@ class GameScreen(customtkinter.CTk):
 
         self._build_ui()
         self._preload_images()
+        maximize_window(self)
 
         if BUTTON_MODE:
             self._serial_thread = SerialReaderThread()

@@ -10,9 +10,8 @@ Urutan inisialisasi:
 6. UI flow: InputScreen → [RoomScreen] → GameScreen
 """
 
-import sys
 import traceback
-
+import sys
 import cv2
 
 from config import BASE_DIR, USE_BANTAL_MODEL
@@ -139,4 +138,3 @@ if __name__ == "__main__":
     except Exception:
         traceback.print_exc()
         raise SystemExit(1)
-
