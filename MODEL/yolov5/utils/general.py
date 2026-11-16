@@ -40,21 +40,13 @@ from utils import TryExcept, emojis
 from utils.downloads import gsutil_getsize
 from utils.metrics import box_iou, fitness
 
-<<<<<<< HEAD
-try: 
-=======
 try:
->>>>>>> rewrite-pr
     import pkg_resources as pkg
 except ImportError:
     import importlib.metadata as pkg
     from packaging.version import parse as _pv
-<<<<<<< HEAD
-    pkg.parse_version = _pv
-=======
     pkg.parse_version = _pv  # shim yang kurang
 
->>>>>>> rewrite-pr
 
 FILE = Path(__file__).resolve()
 ROOT = FILE.parents[1]  # YOLOv5 root directory

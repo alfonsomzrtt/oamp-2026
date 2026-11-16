@@ -25,7 +25,7 @@ from config import DISPLAY_HALF, HIDE_CAMERA, BUTTON_MODE, MAX_LEVEL, LEVEL_ANSW
 from state import STATE
 from ui.theme import CLR, FONT, RADIUS
 from ui.window_utils import maximize_window
-from ui.widgets import SectionLabel, BorderedImageFrame, StatCard, LevelTimeRow, format_seconds
+from ui.widgets import SectionLabel, BorderedImageFrame, StatCard, LevelTimeRow
 from core.camera import CameraThread, open_camera
 from core.detection import DetectionThread, DetectionResult
 from core.audio import AUDIO_DIR, play_sfx, sfx_for_time, play_utterance_pair
@@ -821,7 +821,7 @@ class GameScreen(customtkinter.CTk):
         trophy.grid_columnconfigure(0, weight=1)
 
         customtkinter.CTkLabel(trophy, text=stars, font=(FONT.P, 28), text_color=CLR.GOLD).grid(row=0, column=0, pady=(16, 2))
-        customtkinter.CTkLabel(trophy, text=format_seconds(total_time), font=(FONT.P, 52, "bold"), text_color=CLR.GOLD).grid(row=1, column=0, pady=(0, 2))
+        customtkinter.CTkLabel(trophy, text=f"{total_time:.1f}s", font=(FONT.P, 52, "bold"), text_color=CLR.GOLD).grid(row=1, column=0, pady=(0, 2))
         customtkinter.CTkLabel(trophy, text=star_lbl, font=(FONT.P, 20, "bold"), text_color=CLR.SUCCESS).grid(row=2, column=0, pady=(0, 2))
         customtkinter.CTkLabel(trophy, text="Total Waktu", font=(FONT.P, 13), text_color=CLR.MUTED).grid(row=3, column=0, pady=(0, 16))
 
@@ -849,7 +849,7 @@ class GameScreen(customtkinter.CTk):
         if is_duel:
             stats.grid_columnconfigure((0, 1), weight=1)
             StatCard(stats, "Usia", f"{age_real} th").grid(row=0, column=0, padx=(0, 8), sticky="ew")
-            StatCard(stats, "Total Waktu", format_seconds(total_time)).grid(row=0, column=1, padx=(8, 0), sticky="ew")
+            StatCard(stats, "Total Waktu", f"{total_time:.1f}s").grid(row=0, column=1, padx=(8, 0), sticky="ew")
         else:
             stats.grid_columnconfigure((0, 1, 2), weight=1)
             StatCard(stats, "Usia",          f"{age_real} th").grid(row=0, column=0, padx=(0, 4), sticky="ew")
@@ -969,10 +969,10 @@ class GameScreen(customtkinter.CTk):
 
     def _copy_results(self, total_time, age_real):
         lvl = sum(1 for t in self.timer_task_all if t > 0)
-        text = f"BDT | Total: {format_seconds(total_time)} | Usia: {age_real} | Level: {lvl}/{MAX_LEVEL}"
+        text = f"BDT | Total: {total_time:.1f}s | Usia: {age_real} | Level: {lvl}/{MAX_LEVEL}"
         if self.timer_task_all:
             text += " | " + " ".join(
-                f"L{i + 1}:{format_seconds(t)}"
+                f"L{i + 1}:{t:.1f}s"
                 for i, t in enumerate(self.timer_task_all)
             )
         self.clipboard_clear()
